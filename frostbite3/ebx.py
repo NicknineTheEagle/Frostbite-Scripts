@@ -54,7 +54,7 @@ try:
        buf = bufType()
        bufpointer = pointer(buf)
        floatlib.convertNum(c_double(num), bufpointer, 100)
-       rawstring=(buf.raw)[:buf.raw.find(b"\x00")]
+       rawstring=(buf.raw)[:buf.raw.find(b"\x00")].decode()
        if rawstring[:2]=="-.": return "-0."+rawstring[2:]
        elif rawstring[0]==".": return "0."+rawstring[1:]
        elif "e" not in rawstring and "." not in rawstring: return rawstring+".0"
