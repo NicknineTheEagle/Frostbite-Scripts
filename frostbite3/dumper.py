@@ -12,17 +12,8 @@ import ctypes
 #Adjust paths here.
 #do yourself a favor and don't dump into the Users folder (or it might complain about permission)
 
-# NFS: Rivals (PC)
 gameDirectory   = r"E:\Games\NFSRivals"
 targetDirectory = r"E:\GameRips\NFS\NFSR\pc\dump"
-
-# NFS: Rivals (PS4)
-#gameDirectory   = r"E:\Discs\PS4\NFSRivals[CUSA00168]"
-#targetDirectory = r"E:\GameRips\NFS\NFSR\ps4\dump"
-
-# NFS 2015 (PS4)
-#gameDirectory   = r"E:\Discs\PS4\NFS[CUSA01866]"
-#targetDirectory = r"E:\GameRips\NFS\NFS2015\ps4\dump"
 
 #####################################
 #####################################

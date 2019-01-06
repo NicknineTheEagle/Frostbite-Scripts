@@ -16,29 +16,8 @@ import subprocess
 # Some X360 games have some SB files compressed with X360 compression. Point this at your xbdecompress.exe so that they can be decompressed.
 xbdecompressPath=r"E:\Utilities\xbcompress\xbdecompress.exe"
 
-# Battlefield 3 (PC)
-gameDirectory=r"D:\Games\OriginGames\Battlefield 3"
-targetDirectory=r"E:\GameRips\BF3\pc\dump"
-
-# NFS: The Run (PC)
-#gameDirectory=r"D:\Games\OriginGames\Need for Speed The Run"
-#targetDirectory=r"E:\GameRips\NFS\NFSTR\pc\dump"
-
-# NFS: The Run (PS3)
-#gameDirectory=r"E:\Discs\PS3\NFSTheRun[BLES01298]\PS3_GAME\USRDIR"
-#targetDirectory=r"E:\GameRips\NFS\NFSTR\ps3\dump"
-
-# NFS: The Run (X360)
-#gameDirectory=r"E:\Discs\X360\NFSTheRun"
-#targetDirectory=r"E:\GameRips\NFS\NFSTR\x360\dump"
-
-# NFS: The Run Demo (PS3)
-#tocRoot=r"D:\Emulators\RPCS3\dev_hdd0\game\NPEB90355\USRDIR"
-#targetDirectory=r"E:\GameRips\NFS\NFSTR\dump_ps3_demo"
-
-# NFS: The Run Demo (X360)
-#gameDirectory=r"E:\Discs\X360\NFSTheRunDemo"
-#targetDirectory=r"E:\GameRips\NFS\NFSTR\x360_demo\dump"
+gameDirectory=r"E:\Games\NFSTheRun"
+targetDirectory=r"E:\GameRips\NFS\NFSTR\pc\dump"
 
 #####################################
 #####################################
