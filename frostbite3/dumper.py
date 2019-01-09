@@ -1,7 +1,7 @@
 #This script runs through all toc files it can find and uses that information to extract the files to a target directory.
 #Often the assets are actually stored in cascat archives (the sbtoc knows where to search in the cascat), which is taken care of too.
 #The script does not overwrite existing files (mainly because 10 sbtocs pointing at the same asset in the cascat would make the extraction time unbearable).
-#Using liblz4 for decompression (https://github.com/lz4/lz4)
+#Compression libs used: liblz4 (https://github.com/lz4/lz4), libzstd (https://github.com/facebook/zstd), oodle (http://www.radgametools.com/oodle.htm)
 import dbo
 import noncas
 import os
