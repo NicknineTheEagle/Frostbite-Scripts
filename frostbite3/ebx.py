@@ -1,17 +1,15 @@
-#The floattostring.dll requires 32bit Python to write floating point numbers in a succinct manner,
-#but the dll is not required to run this script.
+#Ebx format is the cornerstone of Frostbite, it's an asset node of sorts used to reference actual game assets
+#stored in chunk and res files as well as define scripts and configs for the game.
+#Ebx is platform native endian.
 import string
 import sys
 import os
-import pickle
 import copy
 from struct import unpack,pack
 import shutil
 
 def unpackLE(typ,data): return unpack("<"+typ,data)
 def unpackBE(typ,data): return unpack(">"+typ,data)
-
-NULLCHNK="00000000000000000000000000000000"
 
 def createGuidTableFast(inputFolder,ebxFolder):
     global guidTable
@@ -21,12 +19,17 @@ def createGuidTableFast(inputFolder,ebxFolder):
         for fname in ff:
             path=os.path.join(dir0,fname)
             f=open(path,"rb")
-            if f.read(4) not in (b"\xCE\xD1\xB2\x0F",b"\x0F\xB2\xD1\xCE"):
+            magic=f.read(4)
+            if   magic==b"\xCE\xD1\xB2\x0F": bigEndian=False
+            elif magic==b"\x0F\xB2\xD1\xCE": bigEndian=True
+            elif magic==b"\xCE\xD1\xB4\x0F": bigEndian=False
+            elif magic==b"\x0F\xB4\xD1\xCE": bigEndian=True
+            else:
                 f.close()
                 continue
             #grab the file guid directly, absolute offset 48 bytes
             f.seek(48)
-            fileguid=f.read(16)
+            fileguid=Guid(f.read(16),bigEndian)
             f.close()
             filename=os.path.relpath(path,ebxFolder)
             filename=os.path.splitext(filename)[0].replace("\\","/")
@@ -45,23 +48,6 @@ def createGuidTable(inputFolder):
 def makeDirs(path):
     folderPath=os.path.dirname(path)
     if not os.path.isdir(folderPath): os.makedirs(folderPath)
-
-try:
-   from ctypes import *
-   floatlib = cdll.LoadLibrary("floattostring")
-   def formatfloat(num):
-       bufType = c_char * 100
-       buf = bufType()
-       bufpointer = pointer(buf)
-       floatlib.convertNum(c_double(num), bufpointer, 100)
-       rawstring=(buf.raw)[:buf.raw.find(b"\x00")].decode()
-       if rawstring[:2]=="-.": return "-0."+rawstring[2:]
-       elif rawstring[0]==".": return "0."+rawstring[1:]
-       elif "e" not in rawstring and "." not in rawstring: return rawstring+".0"
-       return rawstring
-except:
-   def formatfloat(num):
-       return str(num)
 
 def hasher(keyword): #32bit FNV-1 hash with FNV_offset_basis = 5381 and FNV_prime = 33
     hash = 5381
@@ -83,13 +69,20 @@ class Header:
         self.numArrayRepeater    = varList[10]
         self.lenPayload          = varList[11] ## length of normal payload section; the start of the array payload section is absStringOffset+lenString+lenPayload
 class FieldDescriptor:
-    def __init__(self,varList,keywordDict):
+    def __init__(self,varList,keywordDict,version):
         self.name            = keywordDict[varList[0]]
         self.type            = varList[1]
         self.ref             = varList[2] #the field may contain another complex
         self.offset          = varList[3] #offset in payload section; relative to the complex containing it
         self.secondaryOffset = varList[4]
+        self.version         = version
         if self.name=="$": self.offset-=8
+
+    def getFieldType(self):
+        if self.version==1:
+            return (self.type >> 4) & 0x1F
+        else:
+            return (self.type >> 5) & 0x1F
 class ComplexDescriptor:
     def __init__(self,varList,keywordDict):
         self.name            = keywordDict[varList[0]]
@@ -108,6 +101,44 @@ class arrayRepeater:
         self.offset          = varList[0] #offset in array payload section
         self.repetitions     = varList[1] #number of array repetitions
         self.complexIndex    = varList[2] #not necessary for extraction
+class Enumeration:
+    def __init__(self):
+        self.values = dict()
+        self.type = 0
+class Guid:
+    def __init__(self,data,bigEndian):
+        #The first 3 elements are native endian and the last one is big endian.
+        unpacker=unpackBE if bigEndian else unpackLE
+        num1,num2,num3=unpacker("IHH",data[0:8])
+        num4=unpackBE("Q",data[8:16])[0]
+        self.val=num1,num2,num3,num4
+    def __eq__(self,other):
+        return self.__dict__==other.__dict__
+    def __ne__(self,other):
+        return self.__dict__!=other.__dict__
+    def __hash__(self):
+        return hash(self.val)
+
+    def format(self):
+        return "%08x-%04x-%04x-%04x-%010x" % (self.val[0],self.val[1],self.val[2],
+                                             (self.val[3]>>48)&0xFFFF,self.val[3]&0x0000FFFFFFFFFF)
+    def isNull(self):
+        return self.val==(0,0,0,0)
+class InstanceIndex: #Used for instances with no GUID
+    def __init__(self,idx):
+        self.idx=idx
+    def __eq__(self,other):
+        return self.__dict__==other.__dict__
+    def __ne__(self,other):
+        return self.__dict__!=other.__dict__
+    def __hash__(self):
+        return hash(self.val)
+
+    def format(self):
+        return "Instance%d" % self.idx
+    def isNull(self):
+        return False
+
 class Complex:
     def __init__(self,desc,dbxhandle):
         self.desc=desc
@@ -136,18 +167,18 @@ class Complex:
 
     def go1(self,name): #go once
         for field in self.fields:
-            if field.desc.type in (0x0029, 0xd029,0x0000,0x0041):
-                if field.desc.name+"::"+field.value.desc.name == name:
+            if field.desc.getFieldType() in (FieldType.ValueType,FieldType.Void,FieldType.Array):
+                if field.desc.name+"::"+field.value.desc.name==name:
                     return field.value
         raise Exception(name)
-
 
 class Field:
     def __init__(self,desc,dbx):
         self.desc=desc
         self.dbx=dbx
     def link(self):
-        if self.desc.type!=0x0035: raise Exception("Invalid link, wrong field type\nField name: "+self.desc.name+"\nField type: "+hex(self.desc.type)+"\nFile name: "+self.dbx.trueFilename)
+        if self.desc.getFieldType()!=FieldType.Class:
+            raise Exception("Invalid link, wrong field type\nField name: "+self.desc.name+"\nField type: "+hex(self.desc.getFieldType())+"\nFile name: "+self.dbx.trueFilename)
         
         if self.value>>31:
             if self.dbx.ebxRoot=="":
@@ -175,45 +206,48 @@ class Field:
                 if guid==self.dbx.internalGUIDs[self.value-1]:
                     return instance
         else:
-            raise nullguid("Nullguid link.\nFilename: "+self.dbx.trueFilename)
+            raise Exception("Nullguid link.\nFilename: "+self.dbx.trueFilename)
 
         raise Exception("Invalid link, could not find target.")
 
-    def getlinkguid(self):
-        if self.desc.type!=0x0035: raise Exception("Invalid link, wrong field type\nField name: "+self.desc.name+"\nField type: "+hex(self.desc.type)+"\nFile name: "+self.dbx.trueFilename)
-
-        if self.value>>31:
-            return "".join(self.dbx.externalGUIDs[self.value&0x7fffffff])
-        elif self.value!=0:
-            return self.dbx.fileGUID+self.dbx.internalGUIDs[self.value-1]
-        else:
-            raise nullguid("Nullguid link.\nFilename: "+self.dbx.trueFilename)
-    def getlinkname(self):
-        if self.desc.type!=0x0035: raise Exception("Invalid link, wrong field type\nField name: "+self.desc.name+"\nField type: "+hex(self.desc.type)+"\nFile name: "+self.dbx.trueFilename)
-
-        if self.value>>31:
-            return guidTable[self.dbx.externalGUIDs[self.value&0x7fffffff][0]]+"/"+self.dbx.externalGUIDs[self.value&0x7fffffff][1]
-        elif self.value!=0:
-            return self.dbx.trueFilename+"/"+self.dbx.internalGUIDs[self.value-1]
-        else:
-            raise nullguid("Nullguid link.\nFilename: "+self.dbx.trueFilename)
+class FieldType:
+    Void = 0x0
+    DbObject = 0x1
+    ValueType = 0x2
+    Class = 0x3
+    Array = 0x4
+    FixedArray = 0x5
+    String = 0x6
+    CString = 0x7
+    Enum = 0x8
+    FileRef = 0x9
+    Boolean = 0xA
+    Int8 = 0xB
+    UInt8 = 0xC
+    Int16 = 0xD
+    UInt16 = 0xE
+    Int32 = 0xF
+    UInt32 = 0x10
+    Int64 = 0x11
+    UInt64 = 0x12
+    Float32 = 0x13
+    Float64 = 0x14
+    GUID = 0x15
+    SHA1 = 0x16
+    ResourceRef = 0x17
+    #TODO:
+    # ??? - 0x18
+    # ??? - 0x19
     
-
+    def __init__(self):
+        pass
          
 def openEbx(fname):
     f=open(fname,"rb")
-    if f.read(4) not in (b"\xCE\xD1\xB2\x0F",b"\x0F\xB2\xD1\xCE"):
+    if f.read(4) not in (b"\xCE\xD1\xB2\x0F",b"\x0F\xB2\xD1\xCE",b"\xCE\xD1\xB4\x0F",b"\x0F\xB4\xD1\xCE"):
         f.close()
         raise Exception("nope")
     return f
-
-class nullguid(Exception):
-    def __init__(self, value):
-        self.value = value
-    def __str__(self):
-        return repr(self.value)
-
-numDict={0xC12D:("Q",8),0xc0cd:("B",1) ,0x0035:("I",4),0xc10d:("I",4),0xc14d:("d",8),0xc0ad:("?",1),0xc0fd:("i",4),0xc0bd:("b",1),0xc0ed:("h",2), 0xc0dd:("H",2), 0xc13d:("f",4)}
 
 class Stub:
     pass
@@ -223,23 +257,38 @@ class Dbx:
     def __init__(self, f, relPath, ebxRoot=""):
         #metadata
         magic=f.read(4)
-        if magic==b"\xCE\xD1\xB2\x0F":   self.unpack=unpackLE
-        elif magic==b"\x0F\xB2\xD1\xCE": self.unpack=unpackBE
-        else: raise ValueError("The file is not ebx: "+relPath)
+        if magic==b"\xCE\xD1\xB2\x0F":
+            self.version=1
+            self.bigEndian=False
+        elif magic==b"\x0F\xB2\xD1\xCE":
+            self.version=1
+            self.bigEndian=True
+        elif magic==b"\xCE\xD1\xB4\x0F":
+            self.version=2
+            self.bigEndian=False
+        elif magic==b"\x0F\xB4\xD1\xCE": #Probably doesn't exist
+            self.version=2
+            self.bigEndian=True
+        else:
+            raise ValueError("The file is not ebx: "+relPath)
+
+        #Ebx files have platform native endianness.
+        self.unpack=unpackBE if self.bigEndian else unpackLE
         self.ebxRoot=ebxRoot
         self.trueFilename=""
         self.header=Header(self.unpack("3I6H3I",f.read(36)))
         self.arraySectionstart=self.header.absStringOffset+self.header.lenString+self.header.lenPayload
-        self.fileGUID=f.read(16)
+        self.fileGUID=Guid(f.read(16),self.bigEndian)
         while f.tell()%16!=0: f.seek(1,1) #padding
-        self.externalGUIDs=[(f.read(16),f.read(16)) for i in range(self.header.numGUID)]
+        self.externalGUIDs=[(Guid(f.read(16),self.bigEndian),Guid(f.read(16),self.bigEndian)) for i in range(self.header.numGUID)]
         self.keywords=str.split(f.read(self.header.lenName).decode(),"\0")
         self.keywordDict=dict((hasher(keyword),keyword) for keyword in self.keywords)
-        self.fieldDescriptors=[FieldDescriptor(self.unpack("IHHii",f.read(16)), self.keywordDict) for i in range(self.header.numField)]
+        self.fieldDescriptors=[FieldDescriptor(self.unpack("IHHii",f.read(16)), self.keywordDict,self.version) for i in range(self.header.numField)]
         self.complexDescriptors=[ComplexDescriptor(self.unpack("IIBBHHH",f.read(16)), self.keywordDict) for i in range(self.header.numComplex)]
         self.instanceRepeaters=[InstanceRepeater(self.unpack("2H",f.read(4))) for i in range(self.header.numInstanceRepeater)] 
         while f.tell()%16!=0: f.seek(1,1) #padding
         self.arrayRepeaters=[arrayRepeater(self.unpack("3I",f.read(12))) for i in range(self.header.numArrayRepeater)]
+        self.enumerations=dict()
 
         #payload
         f.seek(self.header.absStringOffset+self.header.lenString)
@@ -255,10 +304,10 @@ class Dbx:
 
                 #all instances after numGUIDRepeater have no guid
                 if i<self.header.numGUIDRepeater:
-                    instanceGUID=f.read(16)
+                    instanceGUID=Guid(f.read(16),self.bigEndian)
                 else:
-                    #just numerate those instances without guid and assign a big endian int to them.
-                    instanceGUID=pack(">I",nonGUIDindex)
+                    #just numerate those instances without guid and assign an int to them.
+                    instanceGUID=InstanceIndex(nonGUIDindex)
                     nonGUIDindex+=1
                 self.internalGUIDs.append(instanceGUID)
 
@@ -275,7 +324,6 @@ class Dbx:
         #it's just as good though without capitalization
         if self.trueFilename=="":
             self.trueFilename=relPath
-
 
     def readComplex(self, complexIndex, f, isInstance=False):
         complexDesc=self.complexDescriptors[complexIndex]
@@ -294,21 +342,35 @@ class Dbx:
         return cmplx
 
     def readField(self,fieldIndex,f):
-        fieldDesc = self.fieldDescriptors[fieldIndex]
+        fieldDesc=self.fieldDescriptors[fieldIndex]
         field=Field(fieldDesc,self)
+        type=fieldDesc.getFieldType()
         
-        if fieldDesc.type in (0x0029, 0xd029,0x0000,0x8029):
+        if type==FieldType.Void:
+            # Void (inheritance)
             field.value=self.readComplex(fieldDesc.ref,f)
-        elif fieldDesc.type==0x0041:
-            arrayRepeater=self.arrayRepeaters[self.unpack("I",f.read(4))[0]]
-            arrayComplexDesc=self.complexDescriptors[fieldDesc.ref]
 
-            f.seek(self.arraySectionstart+arrayRepeater.offset)
-            arrayComplex=Complex(arrayComplexDesc,self)
-            arrayComplex.fields=[self.readField(arrayComplexDesc.fieldStartIndex,f) for repetition in range(arrayRepeater.repetitions)]
-            field.value=arrayComplex
-            
-        elif fieldDesc.type in (0x407d, 0x409d):
+        elif type==FieldType.ValueType:
+            # ValueType
+            field.value=self.readComplex(fieldDesc.ref,f)
+
+        elif type==FieldType.Class:
+            # Class (reference)
+            field.value=self.unpack('I',f.read(4))[0]
+
+        elif type==FieldType.Array:
+            # Array
+            array_repeater=self.arrayRepeaters[self.unpack("I",f.read(4))[0]]
+            array_complex_desc=self.complexDescriptors[fieldDesc.ref]
+
+            f.seek(self.arraySectionstart+array_repeater.offset)
+            array_complex=Complex(array_complex_desc,self)
+            array_complex.fields=[self.readField(array_complex_desc.fieldStartIndex, f) for repetition in
+                                    range(array_repeater.repetitions)]
+            field.value=array_complex
+
+        elif type==FieldType.CString:
+            # CString
             startPos=f.tell()
             stringOffset=self.unpack("i",f.read(4))[0]
             if stringOffset==-1:
@@ -316,85 +378,153 @@ class Dbx:
             else:
                 f.seek(self.header.absStringOffset+stringOffset)
                 data=b""
-                while 1:
+                while True:
                     a=f.read(1)
                     if a==b"\x00": break
-                    else: data+=a
+                    data+=a
                 field.value=data.decode()
                 f.seek(startPos+4)
 
-                if self.isPrimaryInstance and fieldDesc.name=="Name" and self.trueFilename=="": self.trueFilename=field.value
-                   
-        elif fieldDesc.type in (0x0089,0xc089): #incomplete implementation, only gives back the selected string
-            compareValue=self.unpack("i",f.read(4))[0] 
+                if self.isPrimaryInstance and fieldDesc.name=="Name" and self.trueFilename=="":
+                    self.trueFilename=field.value
+
+        elif type==FieldType.Enum:
+            # Enum
+            compareValue=self.unpack("i",f.read(4))[0]
             enumComplex=self.complexDescriptors[fieldDesc.ref]
 
-            if enumComplex.numField==0:
-                field.value="*nullEnum*"
-            for fieldIndex in range(enumComplex.fieldStartIndex,enumComplex.fieldStartIndex+enumComplex.numField):
-                if self.fieldDescriptors[fieldIndex].offset==compareValue:
-                    field.value=self.fieldDescriptors[fieldIndex].name
-                    break
-        elif fieldDesc.type==0xc15d:
-            field.value=f.read(16)
-        #elif fieldDesc.type == 0xc13d:
-        #    field.value=formatfloat(self.unpack("f",f.read(4))[0])
-        elif fieldDesc.type==0x417d:
+            if fieldDesc.ref not in self.enumerations:
+                enumeration=Enumeration()
+                enumeration.type=fieldDesc.ref
+
+                for i in range(enumComplex.fieldStartIndex,enumComplex.fieldStartIndex+enumComplex.numField):
+                    enumeration.values[self.fieldDescriptors[i].offset]=self.fieldDescriptors[i].name
+
+                self.enumerations[fieldDesc.ref]=enumeration
+
+            if compareValue not in self.enumerations[fieldDesc.ref].values:
+                field.value='*nullEnum*'
+            else:
+                field.value=self.enumerations[fieldDesc.ref].values[compareValue]
+
+        elif type==FieldType.FileRef:
+            # FileRef
+            startPos=f.tell()
+            stringOffset=self.unpack("i",f.read(4))[0]
+            if stringOffset==-1:
+                field.value="*nullRef*"
+            else:
+                f.seek(self.header.absStringOffset + stringOffset)
+                data=b""
+                while True:
+                    a=f.read(1)
+                    if a==b"\x00": break
+                    data+=a
+                field.value=data.decode()
+                f.seek(startPos+4)
+
+                if self.isPrimaryInstance and fieldDesc.name=="Name" and self.trueFilename=="":
+                    self.trueFilename=field.value
+
+        elif type==FieldType.Boolean:
+            # Boolean
+            field.value=self.unpack('?',f.read(1))[0]
+
+        elif type==FieldType.Int8:
+            # Int8
+            field.value=self.unpack('b',f.read(1))[0]
+
+        elif type==FieldType.UInt8:
+            # UInt8
+            field.value=self.unpack('B',f.read(1))[0]
+
+        elif type==FieldType.Int16:
+            # Int16
+            field.value=self.unpack('h',f.read(2))[0]
+
+        elif type==FieldType.UInt16:
+            # UInt16
+            field.value=self.unpack('H',f.read(2))[0]
+
+        elif type==FieldType.Int32:
+            # Int32
+            field.value=self.unpack('i',f.read(4))[0]
+
+        elif type==FieldType.UInt32:
+            # UInt32
+            field.value=self.unpack('I',f.read(4))[0]
+
+        elif type==FieldType.Int64:
+            # Int64
+            field.value=self.unpack('q',f.read(8))[0]
+
+        elif type==FieldType.UInt64:
+            # UInt64
+            field.value=self.unpack('Q',f.read(8))[0]
+
+        elif type==FieldType.Float32:
+            # Float32
+            field.value=self.unpack('f',f.read(4))[0]
+
+        elif type==FieldType.Float64:
+            # Float64
+            field.value=self.unpack('d',f.read(8))[0]
+
+        elif type==FieldType.GUID:
+            # Guid
+            field.value=Guid(f.read(16),self.bigEndian)
+
+        elif type==FieldType.SHA1:
+            # SHA1
+            field.value=f.read(20)
+
+        elif type==FieldType.ResourceRef:
+            # ResourceRef
             field.value=f.read(8)
+
         else:
-           try:
-               (typ,length)=numDict[fieldDesc.type]
-               num=self.unpack(typ,f.read(length))[0]
-               field.value=num
-           except:
-               #print "Unknown field type: "+str(fieldDesc.type)+" File name: "+self.relPath
-               field.value="*unknown field type*"
-        
+            # Unknown
+            #print("Unknown field type %02x" % type)
+            field.value="*unknown field type 0x%02x*" % type
+
         return field
 
     def dump(self,outputFolder):
-##        if not self.trueFilename: self.trueFilename=self.fileGUID.hex()
-
         print(self.trueFilename)
         outName=os.path.join(outputFolder,self.trueFilename+".txt")
         makeDirs(outName)
         f2=open(outName,"w")
-
-        IGNOREINSTANCES=["RawFileDataAsset"] #used in WebBrowser\Fonts, crashes the script otherwise
+        IGNOREINSTANCES=[]
 
         for (guid,instance) in self.instances:
-            if instance.desc.name not in IGNOREINSTANCES: #############
-                #print 
-                self.writeInstance(f2,instance,guid.hex())
+            if instance.desc.name not in IGNOREINSTANCES:
+                self.writeInstance(f2,instance,guid.format())
                 self.recurse(instance.fields,f2,0)
         f2.close()
 
     def recurse(self, fields, f2, lvl): #over fields
         lvl+=1
         for field in fields:
-            if field.desc.type in (0x0029,0xd029,0x0000,0x8029):
+            type=field.desc.getFieldType()
+
+            if type in (FieldType.Void,FieldType.ValueType):
                 self.writeField(f2,field,lvl,"::"+field.value.desc.name)
                 self.recurse(field.value.fields,f2,lvl)
-            elif field.desc.type == 0xc13d:
-                self.writeField(f2,field,lvl," "+formatfloat(field.value))
-            elif field.desc.type == 0xc15d:
-                self.writeField(f2,field,lvl," "+field.value.hex().upper()) #upper case=> chunk guid
-            elif field.desc.type==0x417d:
-                val=field.value.hex()
-        ##                val=val[:16]+"/"+val[16:]
-                self.writeField(f2,field,lvl," "+val)
-            elif field.desc.type == 0x0035:
+
+            elif type==FieldType.Class:
                 towrite=""
                 if field.value>>31:
                     extguid=self.externalGUIDs[field.value&0x7fffffff]
-                    try: towrite=guidTable[extguid[0]]+"/"+extguid[1].hex()
-                    except: towrite=extguid[0].hex()+"/"+extguid[1].hex()
-                elif field.value==0: towrite="*nullGuid*"
+                    try: towrite=guidTable[extguid[0]]+"/"+extguid[1].format()
+                    except: towrite=extguid[0].format()+"/"+extguid[1].format()
+                elif field.value==0:
+                    towrite="*nullGuid*"
                 else:
                     intGuid=self.internalGUIDs[field.value-1]
-                    towrite=intGuid.hex()
-                self.writeField(f2,field,lvl," "+towrite) 
-            elif field.desc.type==0x0041:
+                    towrite=intGuid.format()
+                self.writeField(f2,field,lvl," "+towrite)
+
+            elif type==FieldType.Array:
                 if len(field.value.fields)==0:
                     self.writeField(f2,field,lvl," *nullArray*")
                 else:
@@ -408,30 +538,41 @@ class Dbx:
                             desc.name="member("+str(index)+")"
                             member.desc=desc
                     self.recurse(field.value.fields,f2,lvl)
+
+            elif type==FieldType.GUID:
+                self.writeField(f2,field,lvl," "+field.value.format())
+
+            elif type==FieldType.SHA1:
+                self.writeField(f2,field,lvl," "+field.value.hex().upper())
+
+            elif type==FieldType.ResourceRef:
+                val=field.value[::-1].hex()
+                # val=val[:16]+"/"+val[16:]
+                self.writeField(f2,field,lvl," "+val)
+
             else:
                 self.writeField(f2,field,lvl," "+str(field.value))
 
     def writeField(self,f,field,lvl,text):
-       f.write(lvl*"\t"+field.desc.name+text+"\n")
+        f.write(lvl*"\t"+field.desc.name+text+"\n")
+        
+    def writeInstance(self,f,cmplx,text):  
+        f.write(cmplx.desc.name+" "+text+"\n")
 
-    def writeInstance(self,f,cmplx,text):
-       f.write(cmplx.desc.name+" "+text+"\n")
-
-    def extractChunks(self,chunkFolder,chunkFolder2,outputFolder):
+    def extractAssets(self,chunkFolder,chunkFolder2,outputFolder):
         self.chunkFolder=chunkFolder
         self.chunkFolder2=chunkFolder2
         self.outputFolder=outputFolder
 
-        if self.prim.desc.name=="SoundWaveAsset": self.extractSPS()
-        elif self.prim.desc.name=="MovieTextureAsset": self.extractVP6()
+        if self.prim.desc.name=="SoundWaveAsset": self.extractSoundWaveAsset()
+        elif self.prim.desc.name=="NewWaveAsset": self.extractNewWaveAsset()
+        elif self.prim.desc.name=="MovieTextureAsset": self.extractMovieAsset()
 
     def findChunk(self,chnk):
-        if chnk.hex()==NULLCHNK:
+        if chnk.isNull():
             return None
 
-        # Try ID as is.
-        ChunkId=chnk.hex()
-
+        ChunkId=chnk.format()
         chnkPath=os.path.join(self.chunkFolder,ChunkId+".chunk")
         if os.path.isfile(chnkPath):
             return chnkPath
@@ -439,26 +580,51 @@ class Dbx:
         if os.path.isfile(chnkPath):
             return chnkPath
         
-        # Check if ID is obfuscated (usually the case in console versions).
-        obfuscationPermutation=[3,2,1,0,5,4,7,6,8,9,10,11,12,13,14,15]
-        newChnk=bytes([chnk[permute] for permute in obfuscationPermutation])
-        ChunkId=newChnk.hex()
-        
-        chnkPath=os.path.join(self.chunkFolder,ChunkId+".chunk")
-        if os.path.isfile(chnkPath):
-            return chnkPath
-        chnkPath=os.path.join(self.chunkFolder2,ChunkId+".chunk")
-        if os.path.isfile(chnkPath):
-            return chnkPath
-        
-        print("Chunk does not exist: "+chnk.hex().upper())
+        print("Chunk does not exist: "+ChunkId)
         return None
+
+    def extractSPS(self,f,offset,target):
+        f.seek(offset)
+        if f.read(1)!=b"\x48":
+            raise Exception("Wrong SPS header.")
+
+        # Create the target file.
+        targetFolder=os.path.dirname(target)
+        if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
+        f2=open(target,"wb")
+
+        # 0x48=header, 0x44=normal block, 0x45=last block (empty)
+        while True:
+            f.seek(offset)
+            blockStart=unpack(">I",f.read(4))[0]
+            blockId=(blockStart&0xFF000000)>>24
+            blockSize=blockStart&0x00FFFFFF
+
+            f.seek(offset)
+            f2.write(f.read(blockSize))
+            offset+=blockSize
+
+            if blockId==0x45:
+                break
+
+        f2.close()
         
-    def extractSPS(self):
+    def extractSoundWaveAsset(self):
+        print(self.trueFilename)
+
         histogram=dict() #count the number of times each chunk is used by a variation to obtain the right index
 
+        if self.version==1:
+            chunksPath="$::SoundDataAsset/Chunks::array"
+            variationsPath="RuntimeVariations::array"
+            segmentsPath="Segments::array"
+        elif self.version==2:
+            chunksPath="$::SoundWaveAssetBase/$::SoundDataAsset/Chunks::SoundDataChunk-Array"
+            variationsPath="RuntimeVariations::SoundWaveRuntimeVariation-Array"
+            segmentsPath="Segments::SoundWaveVariationSegment-Array"
+
         Chunks=[]
-        for i in self.prim.get("$::SoundDataAsset/Chunks::array").fields:
+        for i in self.prim.get(chunksPath).fields:
             chnk=Stub()
             Chunks.append(chnk)
             chnk.ChunkId=i.value.get("ChunkId").value            
@@ -466,14 +632,14 @@ class Dbx:
 
         Variations=[]
         Segments=[]
-        for seg in self.prim.get("Segments::array").fields:
+        for seg in self.prim.get(segmentsPath).fields:
             Segment=Stub()
             Segments.append(Segment)
             Segment.SamplesOffset = seg.value.get("SamplesOffset").value
             Segment.SeekTableOffset = seg.value.get("SeekTableOffset").value
             Segment.SegmentLength = seg.value.get("SegmentLength").value
         
-        for var in self.prim.get("RuntimeVariations::array").fields:
+        for var in self.prim.get(variationsPath).fields:
             Variation=Stub()
             Variations.append(Variation)
             Variation.ChunkIndex=var.value.get("ChunkIndex").value
@@ -511,47 +677,50 @@ class Dbx:
                 f=open(currentChunkName,"rb")
                 ChunkHandles[Variation.ChunkId]=f
 
-
             for ijk in range(len(Variation.Segments)):
                 Segment=Variation.Segments[ijk]
                 offset=Segment.SamplesOffset
 
-                f.seek(offset)
-                headerId=unpack(">B",f.read(1))[0]
-                if headerId!=0x48:
-                    raise Exception("Wrong SPS header.")
-
-                # Create the target file.
                 target=os.path.join(self.outputFolder,self.trueFilename)
                 if len(Chunks)>1 or len(Variations)>1 or len(Variation.Segments)>1:
                     target+=" "+str(Variation.ChunkIndex)+" "+str(Variation.Index)+" "+str(ijk)
                 target+=".sps"
-                    
-                targetFolder=os.path.dirname(target)
-                if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
-                f2=open(target,"wb")
 
-                # 0x48=header, 0x44=normal block, 0x45=last block (empty)
-                while True:
-                    f.seek(offset)
-                    blockStart=unpack(">I",f.read(4))[0]
-                    blockId=(blockStart&0xFF000000)>>24
-                    blockSize=blockStart&0x00FFFFFF
-
-                    f.seek(offset)
-                    f2.write(f.read(blockSize))
-                    offset+=blockSize
-
-                    if blockId==0x45:
-                        break
-
-                f2.close()
+                self.extractSPS(f,offset,target)
 
         for key in ChunkHandles:
             ChunkHandles[key].close()
+
+    def extractNewWaveAsset(self):
         print(self.trueFilename)
 
-    def extractVP6(self):
+        Chunks=self.prim.get("$::SoundWaveAssetBase/$::SoundDataAsset/Chunks::SoundDataChunk-Array").fields
+        for i in range(len(Chunks)):
+            field=Chunks[i]
+            ChunkId=field.value.get("ChunkId").value      
+            ChunkSize=field.value.get("ChunkSize").value
+            currentChunkName=self.findChunk(ChunkId)
+            if not currentChunkName:
+                return
+
+            #Some files have seek table at the start and I don't know how to find out its size yet.
+            #There's a value that appears to be related to size at 0x08, not sure how it works.
+            if self.prim.get("IsSeekable").value==True:
+                print("TODO: Chunk %s has seek table, size unknown" % ChunkId.format())
+                return
+            
+            target=os.path.join(self.outputFolder,self.trueFilename)
+            if len(Chunks)>1:
+                target+" "+str(i)
+            target+=".sps"
+            
+            f=open(currentChunkName,"rb")
+            self.extractSPS(f,0,target)
+            f.close()
+
+    def extractMovieAsset(self):
+        print(self.trueFilename)
+
         currentChunkName=self.findChunk(self.prim.get("ChunkGuid").value)      
         if not currentChunkName:
             return
@@ -564,8 +733,3 @@ class Dbx:
         if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
         shutil.copyfile(currentChunkName,target)
 
-        currentChunkName=self.findChunk(self.prim.get("SubtitleChunkGuid").value)
-        if currentChunkName:
-            shutil.copyfile(currentChunkName,os.path.join(self.outputFolder,self.trueFilename+".srt"))
-                
-        print(self.trueFilename)

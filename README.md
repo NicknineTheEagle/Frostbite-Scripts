@@ -5,7 +5,9 @@ There is one folder for each Frostbite version:
  * frostbite2 
    * Frostbite Engine 2 (2011-2012) - Battlefield 3, Need for Speed: The Run, ...
  * frostbite3
-   * Frostbite Engine 3 (2013-2016) - Battlefield 4, Need for Speed: Rivals, ...
+   * Frostbite Engine 3 (2013-present) - Battlefield 4, Need for Speed: Rivals, ...
+   * Newest games from 2018 (Battlefield V, FIFA 19) are not supported yet.
+   * IMPORTANT: In FIFA 18, some files are compressed with Oodle. I can't distribute the library required to decompress it here since it's proprietary and the one from FIFA 18 itself is 64-bit so it can't be used with Python 32-bit. You'll need to get oo2core_6_win32.dll from a game using Oodle and put it into frostbite3 directory. Your best bet is to get it from Warframe, it's a F2P game: https://store.steampowered.com/app/230410
  
 In each directory, you'll find the following scripts:
  * dumper - adjust the paths at the start and run it to dump all the contents of superbundles; all the other scripts are meant to be used with the resulting dump
@@ -19,3 +21,7 @@ To eleborate on Frostbite asset structure, all data is contained inside superbun
 Additionally, superbundle itself can also contain chunks.
  
 So if you want to get the game assets you need to take the EBX files and use them to find your data inside the chunks. This is what ebxtoasset script does.
+
+CREDITS:
+ * Frankelstner - initial research of Frostbite formats and original Python scripts
+ * NoFaTe - some improvements to Ebx and DbObject parser

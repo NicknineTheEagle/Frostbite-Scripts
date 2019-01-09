@@ -1,14 +1,15 @@
 #This script runs through all toc files it can find and uses that information to extract the files to a target directory.
 #Often the assets are actually stored in cascat archives (the sbtoc knows where to search in the cascat), which is taken care of too.
 #The script does not overwrite existing files (mainly because 10 sbtocs pointing at the same asset in the cascat would make the extraction time unbearable).
-import sbtoc
-import Bundle
+import dbo
+import noncas
 import os
 from struct import pack,unpack
 import io
 import sys
 import zlib
 import subprocess
+import ebx
 
 #Adjust paths here.
 #do yourself a favor and don't dump into the Users folder (or it might complain about permission)
@@ -16,11 +17,35 @@ import subprocess
 # Some X360 games have some SB files compressed with X360 compression. Point this at your xbdecompress.exe so that they can be decompressed.
 xbdecompressPath=r"E:\Utilities\xbcompress\xbdecompress.exe"
 
-gameDirectory=r"E:\Games\NFSTheRun"
+gameDirectory=r"E:\Games\EA\NFSTheRun"
 targetDirectory=r"E:\GameRips\NFS\NFSTR\pc\dump"
 
 #####################################
 #####################################
+
+resTypes={
+    0x5C4954A6:".itexture",
+    0x2D47A5FF:".gfx",
+    0x22FE8AC8:"",
+    0x6BB6D7D2:".streamingstub",
+    0x1CA38E06:"",
+    0x15E1F32E:"",
+    0x4864737B:".hkdestruction",
+    0x91043F65:".hknondestruction",
+    0x51A3C853:".ant",
+    0xD070EED1:".animtrackdata",
+    0x319D8CD0:".ragdoll",
+    0x49B156D4:".mesh",
+    0x30B4A553:".occludermesh",
+    0x5BDFDEFE:".lightingsystem",
+    0x70C5CB3E:".enlighten",
+    0xE156AF73:".probeset",
+    0x7AEFC446:".staticenlighten",
+    0x59CEEB57:".shaderdatabase",
+    0x36F3F2C0:".shaderdb",
+    0x10F0E5A1:".shaderprogramdb",
+    0xC6DBEE07:".mohwspecific"
+}
 
 #zlib (one more try):
 #Files are split into pieces which are then zlibbed individually (prefixed with compressed and uncompressed size)
@@ -96,22 +121,6 @@ def zlibb(f, size):
 def zlibIdata(bytestring):
     return zlibb(io.BytesIO(bytestring),len(bytestring))
 
-class CatEntry:
-    def __init__(self,f,casDirectory):
-        self.offset, self.size, casNum = unpack("<III",f.read(12))
-        self.path=os.path.join(casDirectory,"cas_%02d.cas" % casNum)
-
-def readCat(catDict, catPath):
-    """Take a dict and fill it using a cat file: sha1 vs (offset, size, cas path)"""
-    cat=sbtoc.unXor(catPath)
-    cat.seek(0,2) #get eof
-    catSize=cat.tell()
-    cat.seek(16) #skip nyan
-    casDirectory=os.path.dirname(catPath) #get the full path so every entry knows whether it's from the patched or unpatched cat.
-    while cat.tell()<catSize:
-        sha1=cat.read(20)
-        catDict[sha1]=CatEntry(cat,casDirectory)
-
 def open2(path,mode):
     #create folders if necessary and return the file handle
 
@@ -129,36 +138,12 @@ def lp(path): #long pathnames
     if path[:4]=='\\\\?\\' or path=="" or len(path)<=247: return os.path.normpath(path)
     return unicode('\\\\?\\' + os.path.normpath(path))
 
-resTypes={
-    0x5C4954A6:".itexture",
-    0x2D47A5FF:".gfx",
-    0x22FE8AC8:"",
-    0x6BB6D7D2:".streamingstub",
-    0x1CA38E06:"",
-    0x15E1F32E:"",
-    0x4864737B:".hkdestruction",
-    0x91043F65:".hknondestruction",
-    0x51A3C853:".ant",
-    0xD070EED1:".animtrackdata",
-    0x319D8CD0:".ragdoll",
-    0x49B156D4:".mesh",
-    0x30B4A553:".occludermesh",
-    0x5BDFDEFE:".lightingsystem",
-    0x70C5CB3E:".enlighten",
-    0xE156AF73:".probeset",
-    0x7AEFC446:".staticenlighten",
-    0x59CEEB57:".shaderdatabase",
-    0x36F3F2C0:".shaderdb",
-    0x10F0E5A1:".shaderprogramdb",
-    0xC6DBEE07:".mohwspecific"
-}
-
 class Delta:
     def __init__(self,sb):
         self.size,self.fromUnpatched,self.offset=unpack(">IIQ",sb.read(16))
 
 def dump(tocPath,baseTocPath,outPath):
-    toc=sbtoc.readToc(tocPath)
+    toc=dbo.readToc(tocPath)
     if not (toc.get("bundles") or toc.get("chunks")): return #there's nothing to extract (the sb might not even exist)
     
     sbPath=tocPath[:-3]+"sb"
@@ -175,7 +160,7 @@ def dump(tocPath,baseTocPath,outPath):
         #deal with cas bundles => ebx, dbx, res, chunks. 
         for tocEntry in toc.get("bundles"): #id offset size, size is redundant
             sb.seek(tocEntry.get("offset"))
-            bundle=sbtoc.Entry(sb)
+            bundle=dbo.Entry(sb)
 
             #make empty lists for every type to get rid of key errors(=> less indendation)
             for listType in ("ebx","dbx","res","chunks"):
@@ -200,12 +185,12 @@ def dump(tocPath,baseTocPath,outPath):
                 casHandlePayload(entry,path)
 
             for entry in bundle.get("chunks"): #id sha1 size, chunkMeta::meta
-                path=os.path.join(chunkPath,entry.get("id").hex()+".chunk")
+                path=os.path.join(chunkPath,formatGuid(entry.get("id"),False)+".chunk")
                 casHandlePayload(entry,path)
 
         #deal with cas chunks defined in the toc.
         for entry in toc.get("chunks"): # id sha1
-            path=os.path.join(chunkPathToc,entry.get("id").hex()+".chunk")
+            path=os.path.join(chunkPathToc,formatGuid(entry.get("id"),False)+".chunk")
             casHandlePayload(entry,path)
 
     else:
@@ -256,12 +241,12 @@ def dump(tocPath,baseTocPath,outPath):
                 noncasHandlePayload(sb2,entry.offset,entry.size,entry.originalSize,path)
 
             for entry in bundle.chunkEntries:
-                path=os.path.join(chunkPath,entry.id.hex()+".chunk")
+                path=os.path.join(chunkPath,formatGuid(entry.id,True)+".chunk")
                 noncasHandlePayload(sb2,entry.offset,entry.size,None,path)
 
         #deal with noncas chunks defined in the toc
         for entry in toc.get("chunks"): #id offset size
-            path=os.path.join(chunkPathToc,entry.get("id").hex()+".chunk")
+            path=os.path.join(chunkPathToc,formatGuid(entry.get("id"),False)+".chunk")
             noncasHandlePayload(sb,entry.get("offset"),entry.get("size"),None,path)
 
     # Clean up.
@@ -269,6 +254,12 @@ def dump(tocPath,baseTocPath,outPath):
     for tempSb in tempSbFiles:
         os.remove(tempSb)
     tempSbFiles.clear()
+
+
+
+def formatGuid(data,bigEndian):
+    guid=ebx.Guid(data,bigEndian)
+    return guid.format()
 
 def casHandlePayload(entry,outPath):
     if os.path.exists(lp(outPath)): return #don't overwrite existing files to speed up things
@@ -326,6 +317,27 @@ def openSbFile(sbPath):
     sb.seek(0)
     return sb
 
+
+
+#Take a dict and fill it using a cat file: sha1 vs (offset, size, cas path)
+#Cat files are always little endian.
+class CatEntry:
+    def __init__(self,f,casDirectory):
+        self.offset, self.size, casNum = unpack("<III",f.read(12))
+        self.path=os.path.join(casDirectory,"cas_%02d.cas" % casNum)
+
+def readCat(catDict, catPath):
+    cat=dbo.unXor(catPath)
+    cat.seek(0,2) #get eof
+    catSize=cat.tell()
+    cat.seek(16) #skip nyan
+    casDirectory=os.path.dirname(catPath)
+    while cat.tell()<catSize:
+        sha1=cat.read(20)
+        catDict[sha1]=CatEntry(cat,casDirectory)
+
+
+
 #make the paths absolute and normalize the slashes
 gameDirectory=os.path.normpath(gameDirectory)
 targetDirectory=os.path.normpath(targetDirectory) #it's an absolute path already
@@ -334,15 +346,16 @@ updateDirectory=os.path.join(gameDirectory,"Update")
 patchDirectory=os.path.join(updateDirectory,"Patch")
 
 def dumpRoot(root):
-    for dir0, dirs, ff in os.walk(os.path.join(root,"Data")):
+    dataPath=os.path.join(root,"Data")
+    for dir0, dirs, ff in os.walk(dataPath):
         for fname in ff:
             if fname[-4:]==".toc":
                 fname=os.path.join(dir0,fname)
-                localPath=os.path.relpath(fname,root)
+                localPath=os.path.relpath(fname,dataPath)
                 print(localPath)
 
                 #Check if there's a patched version and extract it first.
-                patchedName=os.path.join(patchDirectory,localPath)
+                patchedName=os.path.join(patchDirectory,"Data",localPath)
                 if os.path.isfile(patchedName):
                     dump(patchedName,fname,targetDirectory)
 

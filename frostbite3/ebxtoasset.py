@@ -35,4 +35,4 @@ for dir0, dirs, ff in os.walk(inputFolder):
         f=open(os.path.join(dir0,fname),"rb")
         dbx=ebx.Dbx(f,fname,ebxFolder)
         f.close()
-        dbx.extractChunks(chunkFolder,chunkFolder2,targetDirectory)
+        dbx.extractAssets(chunkFolder,chunkFolder2,targetDirectory)

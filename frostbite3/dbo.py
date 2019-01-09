@@ -1,3 +1,6 @@
+#This is essentially a binary JSON type container.
+#Each entry can hold a value of a specic type or more entries embedded into it.
+#Values are always little endian.
 from struct import unpack
 import io
 from collections import OrderedDict
@@ -27,15 +30,7 @@ def unXor(path):
     
     f=open(path,"rb")
     magic=f.read(4)
-    if magic in (b"\x00\xD1\xCE\x00",b"\x00\xD1\xCE\x01"): #the file is XOR encrypted and has a signature
-        f.seek(296) #skip the signature
-        key=[f.read(1)[0]^0x7b for i in range(260)] #bytes 257 258 259 are not used
-        encryptedData=f.read()
-        size=len(encryptedData)
-        data=bytearray(size) #initalize the buffer
-        for i in range(size):
-            data[i]=key[i%257]^encryptedData[i]
-    elif magic==b"\x00\xD1\xCE\x03": #the file has a signature, but an empty key; it's not encrypted
+    if magic in (b"\x00\xD1\xCE\x00",b"\x00\xD1\xCE\x01",b"\x00\xD1\xCE\x03"): #the file has a signature, but an empty key; it's not encrypted
         f.seek(556) #skip signature + skip empty key
         data=f.read()
     else: #the file is not encrypted; no key + no signature
@@ -44,10 +39,8 @@ def unXor(path):
     f.close()
 
     return io.BytesIO(data)
-        
-class Entry:
-    #This is essentially a serialized keyvalues type container.
-    #Each entry can hold a value of a specic type or more entries embedded into it.
+
+class DbObject:
     def __init__(self,toc,defVal=None): #read the data from file
         if not toc:
             self.content=defVal
@@ -71,7 +64,7 @@ class Entry:
             entrySize=read128(toc)
             endPos=toc.tell()+entrySize
             while toc.tell()<endPos-1: #-1 because of final nullbyte
-                content=Entry(toc)
+                content=DbObject(toc)
                 self.elems[content.name]=content
             if toc.read(1)!=b"\x00": raise Exception(r"Entry does not end with \x00 byte. Position: "+str(toc.tell()))
         elif self.typ==0x13: self.content=toc.read(read128(toc)) #blob
@@ -85,7 +78,7 @@ class Entry:
             entries=list()
             endPos=toc.tell()+self.listLength
             while toc.tell()<endPos-1: #lists end on nullbyte
-                entries.append(Entry(toc))
+                entries.append(DbObject(toc))
             self.content=entries
             if toc.read(1)!=b"\x00": raise Exception(r"List does not end with \x00 byte. Position: "+str(toc.tell()))
         else: raise Exception("Unknown type: "+hex(self.typ)+" "+hex(toc.tell()))
@@ -94,8 +87,38 @@ class Entry:
         try: return self.elems[fieldName].content
         except: return None
 
+    def getSubEntry(self,fieldName):
+        try: return self.elems[fieldName]
+        except: return None
+
     def set(self,fieldName,val):
-        self.elems[fieldName]=Entry(None,val)
+        self.elems[fieldName]=DbObject(None,val)
+
+    def writeKeyValues(self,f,lvl=0,name=""):
+        if not self.flags&0x04:
+            f.write(lvl*"\t"+self.name)
+        else:
+            f.write(lvl*"\t"+name)
+
+        if   self.typ==0x0f: f.write("\t"+self.content.hex())
+        elif self.typ==0x09: f.write("\t"+str(self.content))
+        elif self.typ==0x08: f.write("\t"+str(self.content))
+        elif self.typ==0x06: f.write("\t"+str(self.content))
+        elif self.typ==0x02:
+            f.write("\n"+lvl*"\t"+"{\n")
+            for entry in self.elems:
+                self.elems[entry].writeKeyValues(f,lvl+1)
+            f.write(lvl*"\t"+"}")
+        elif self.typ==0x13: f.write("\t"+self.content.hex())
+        elif self.typ==0x10: f.write("\t"+self.content.hex())
+        elif self.typ==0x07: f.write("\t"+self.content)
+        elif self.typ==0x01:
+            f.write("\n"+lvl*"\t"+"{\n")
+            for i in range(len(self.content)):
+                self.content[i].writeKeyValues(f,lvl+1,str(i))
+            f.write(lvl*"\t"+"}")
+
+        f.write("\n")
 
 def readToc(tocPath): #take a filename, decrypt the file and make an entry out of it
-    return Entry(unXor(tocPath))
+    return DbObject(unXor(tocPath))

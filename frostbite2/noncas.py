@@ -1,8 +1,10 @@
+#This is a parser for non-cas bundles.
+#Unlike toc files these are always big endian.
 import sys
 import os
 from struct import unpack,pack
 import zlib
-import sbtoc
+import dbo
 
 
 def readNullTerminatedString(f):
@@ -19,7 +21,7 @@ def alignValue(val,block):
     if tmp==0: return val
     return val+block-tmp
 
-class Bundle(): #noncas
+class Bundle:
     def __init__(self, f): 
         metaSize=unpack(">I",f.read(4))[0] #size of the meta section/offset of the payload section
         metaStart=f.tell()
@@ -44,7 +46,7 @@ class Bundle(): #noncas
         #The hash of this name in lowercase is the h32 found in the chunkMeta. The same hash is also found in the ebx file itself at the keyword NameHash
         #For ITextures, the h32 is found in the corresponding res file. The res file also contains a name and once again the hash of this name is the h32.
         #meta for textures usually contains firstMip 0/1/2.
-        if self.header.numChunks>0: self.chunkMeta=sbtoc.Entry(f)
+        if self.header.numChunks>0: self.chunkMeta=dbo.DbObject(f)
         for i in range(self.header.numChunks):
             self.chunkEntries[i].meta=self.chunkMeta.content[i].get("meta")
             self.chunkEntries[i].h32=self.chunkMeta.content[i].get("h32")
@@ -56,8 +58,8 @@ class Bundle(): #noncas
         f.seek(metaEnd) #PAYLOAD. Just grab all the payload offsets and sizes and add them to the entries without actually reading the payload. Also attach sha1 to entry.
         sha1Counter=0
         for entry in self.ebxEntries+self.resEntries+self.chunkEntries:
-            entry.offset=alignValue(f.tell(),0x10)
-            f.seek(entry.offset+entry.size)         
+            entry.offset=alignValue(f.tell(),16)
+            f.seek(entry.offset+entry.size)
             entry.sha1=self.sha1List[sha1Counter]
             sha1Counter+=1
 

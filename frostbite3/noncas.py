@@ -1,15 +1,24 @@
+#This is a parser for non-cas bundles.
+#Unlike toc files these are always big endian.
 from struct import unpack,pack
 import io
-import cas
+import dbo
 
-readNullTerminatedString=cas.readNullTerminatedString
+def readNullTerminatedString(f):
+    result=b""
+    while 1:
+        byte=f.read(1)
+        if byte==b"\x00": break
+        result+=byte
 
-def seekLZ77Block(f):
+    return result.decode()
+
+def seekPayloadBlock(f):
     num1, num2 = unpack(">II",f.read(8))
     uncompressedSize=num1&0x00FFFFFF
     comType=(num2&0xFF000000)>>24
     compressedSize=num2&0x000FFFFF
-    if comType not in (0x00,0x09): raise Exception("Unknown compression type at %08x" % f.tell()-0x08)
+    if comType not in (0x00,0x09,0x0f,0x15): raise Exception("Unknown compression type 0x%02x at 0x%08x in %s" % (comType,f.tell()-8,f.name))
     f.seek(compressedSize,1)
     return decompressedSize
 
@@ -24,7 +33,7 @@ def unpatchedBundle(base):
         entry.offset=base.tell()
         currentSize=0
         while currentSize!=entry.originalSize:
-            currentSize+=seekLZ77Block(base)
+            currentSize+=seekPayloadBlock(base)
         entry.size=base.tell()-entry.offset
     return b
 
@@ -120,23 +129,23 @@ def patchedBundle(base, delta):
         instructionType, instructionSize = split1v7(unpack(">I",delta.read(4))[0])
         if instructionType==0: #add base blocks without modification
             for i in range(instructionSize):
-                entry.currentSize+=seekLZ77Block(base)
+                entry.currentSize+=seekPayloadBlock(base)
                 if entry.currentSize==entry.originalSize:
                     entry=getEntry.__next__()
                     entry.midInstructionSize=instructionSize-i-1 #remaining iterations
                     entry.midInstructionType=instructionType  
         elif instructionType==2: #make tiny fixes in the base block
-            seekLZ77Block(base)
+            seekPayloadBlock(base)
             entry.currentSize+=unpack(">H",delta.read(2))[0]+1
             delta.seek(instructionSize,1)
             if entry.currentSize==entry.originalSize: entry=getEntry.__next__()
         elif instructionType==1: #make larger fixes in the base block
-            baseBlock=seekLZ77Block(base)
+            baseBlock=seekPayloadBlock(base)
             prevOffset=0
             for i in range(instructionSize):
                 targetOffset, skipSize = unpack(">HH",delta.read(4))
                 entry.currentSize+=targetOffset-prevOffset
-                entry.currentSize+=seekLZ77Block(delta)
+                entry.currentSize+=seekPayloadBlock(delta)
                 prevOffset=targetOffset+skipSize
                 if entry.currentSize==entry.originalSize: #this might be extremely bad, UNLESS the the instruction does not want to read more bytes after that anyway
                     if i!=instructionSize-1: bad #should be the last instruction
@@ -145,28 +154,28 @@ def patchedBundle(base, delta):
             if entry.currentSize==entry.originalSize: entry=getEntry.__next__()
         elif instructionType==3: #add delta blocks directly to the payload
             for i in range(instructionSize):
-                entry.currentSize+=seekLZ77Block(delta)
+                entry.currentSize+=seekPayloadBlock(delta)
                 if entry.currentSize==entry.originalSize:
                     entry=getEntry.__next__()
                     entry.midInstructionSize=instructionSize-i-1 #remaining iterations
                     entry.midInstructionType=instructionType
         elif instructionType==4: #skip entire blocks, do not increase currentSize at all
             for i in range(instructionSize):
-                seekLZ77Block(base)
+                seekPayloadBlock(base)
         else:
-            raise Exception("Unknown payload type: %02x Delta offset: %08x" % (instructionType,delta.tell()))
+            raise Exception("Unknown payload type: 0x%02x Delta offset: 0x%08x" % (instructionType,delta.tell()))
     
     #The delta is fully read, but it's not over yet.
     #Read remaining base blocks until all entries are satisfied (infinite instruction of type 0).
         
     #the current entry probably hasn't reached its full size yet and requires manual attention
     while entry.currentSize!=entry.originalSize:
-        entry.currentSize+=seekLZ77Block(base)
+        entry.currentSize+=seekPayloadBlock(base)
 
     #all remaining entries go here
     for entry in getEntry:
         while entry.currentSize!=entry.originalSize:
-            entry.currentSize+=seekLZ77Block(base)
+            entry.currentSize+=seekPayloadBlock(base)
 
     return b
 
@@ -189,7 +198,7 @@ class Bundle: #noncas, read metadata only and seek to the start of the payload s
         self.chunks=[Chunk(f) for i in range(self.header.chunkCount)]
 
         #chunkMeta. There is one chunkMeta entry for every chunk (i.e. self.chunks and self.chunkMeta both have the same number of elements).
-        if self.header.chunkCount>0: self.chunkMeta=cas.Entry(f)
+        if self.header.chunkCount>0: self.chunkMeta=dbo.DbObject(f)
         for i in range(self.header.chunkCount):
             self.chunks[i].meta=self.chunkMeta.content[i].elems["meta"].elems
             self.chunks[i].h32=self.chunkMeta.content[i].elems["h32"].content

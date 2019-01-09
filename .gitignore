@@ -102,3 +102,11 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# Visual Studio
+*.sln
+*.pyproj
+.vs/
+
+# Proprietary stuff
+oo2core_6_win32.dll

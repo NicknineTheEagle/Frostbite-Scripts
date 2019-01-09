@@ -2,17 +2,18 @@
 #Often the assets are actually stored in cascat archives (the sbtoc knows where to search in the cascat), which is taken care of too.
 #The script does not overwrite existing files (mainly because 10 sbtocs pointing at the same asset in the cascat would make the extraction time unbearable).
 #Using liblz4 for decompression (https://github.com/lz4/lz4)
-import cas
+import dbo
 import noncas
 import os
 from struct import pack,unpack
 import io
 import ctypes
+import ebx
 
 #Adjust paths here.
 #do yourself a favor and don't dump into the Users folder (or it might complain about permission)
 
-gameDirectory   = r"E:\Games\NFSRivals"
+gameDirectory   = r"E:\Games\EA\NFSRivals"
 targetDirectory = r"E:\GameRips\NFS\NFSR\pc\dump"
 
 #####################################
@@ -20,6 +21,9 @@ targetDirectory = r"E:\GameRips\NFS\NFSR\pc\dump"
 
 #LZ77 = ctypes.cdll.LoadLibrary("LZ77")
 liblz4 = ctypes.cdll.LoadLibrary("liblz4")
+libzstd = ctypes.cdll.LoadLibrary("libzstd")
+try: oodle = ctypes.windll.LoadLibrary("oo2core_6_win32")
+except: oodle = None
 
 resTypes={ #not really updated for bf4 though
     0x5C4954A6:".itexture",
@@ -47,19 +51,21 @@ resTypes={ #not really updated for bf4 though
 }
 
 def readBlockHeader(f):
-    #8 bits: ???
-    #24 bits: uncompressed sizze
+    #Block header is a bitfield:
+    #8 bits: custom dict flag
+    #24 bits: uncompressed size
     #8 bits: compression type
     #4 bits: always 7?
     #20 bits: compressed size
     num1,num2=unpack(">II",f.read(8))
+    dictFlag=num1&0xFF000000
     uncompressedSize=num1&0x00FFFFFF
     comType=(num2&0xFF000000)>>24
     compressedSize=num2&0x000FFFFF
-    return uncompressedSize, comType, compressedSize
+    return dictFlag, uncompressedSize, comType, compressedSize
 
 def decompressBlock(f,f2):
-    uncompressedSize,comType,compressedSize=readBlockHeader(f)
+    dictFlag, uncompressedSize, comType, compressedSize = readBlockHeader(f)
 
     if comType==0x09:
         #Block is compressed with LZ4.
@@ -67,11 +73,29 @@ def decompressBlock(f,f2):
         dstBuf=bytes(uncompressedSize)
         liblz4.LZ4_decompress_safe_partial(srcBuf,dstBuf,compressedSize,uncompressedSize,uncompressedSize)
         f2.write(dstBuf)
+    elif comType==0x0f:
+        #Block is compressed with Zstd.
+        srcBuf=f.read(compressedSize)
+        dstBuf=bytes(uncompressedSize) 
+        if dictFlag:
+            zstd_dctx=ctypes.c_void_p(libzstd.ZSTD_createDCtx())
+            libzstd.ZSTD_decompress_usingDDict(zstd_dctx,dstBuf,uncompressedSize,srcBuf,compressedSize,zstd_dict)
+            libzstd.ZSTD_freeDCtx(zstd_dctx)
+        else:
+            libzstd.ZSTD_decompress(dstBuf,uncompressedSize,srcBuf,compressedSize)
+        f2.write(dstBuf)
+    elif comType==0x15:
+        #Block is compressed with Oodle. Only used in FIFA 18/19 so far.
+        if not oodle: raise Exception("You need oo2core_6_win32.dll to decompress Oodle.")
+        srcBuf=f.read(compressedSize)
+        dstBuf=bytes(uncompressedSize)
+        oodle.OodleLZ_Decompress(srcBuf,compressedSize,dstBuf,uncompressedSize,0,0,0,0,0,0,0,0,0,3)
+        f2.write(dstBuf)
     elif comType==0x00:
         #No compression, just write this block as it is.
         f2.write(f.read(compressedSize))
     else:
-        raise Exception("Unknown compression type at %08x" % f.tell()-0x08)
+        raise Exception("Unknown compression type 0x%02x at 0x%08x in %s" % (comType,f.tell()-8,f.name))
 
     return uncompressedSize
 
@@ -81,17 +105,11 @@ def decompressPayload(srcPath,offset,size,originalSize,outPath):
     f2=open(os.path.normpath(outPath),"wb")
 
     #Payloads are split into blocks and each block may or may not be compressed.
-    try:
-        while f.tell()!=offset+size:        
-            decompressBlock(f,f2)
-            if originalSize and f2.tell()==originalSize:
-                break
-    except:
-        #Clean up the file in case of an exception.
-        f.close()
-        f2.close()
-        os.remove(f2.name)
-        raise
+    #We need to decompress and glue the blocks together to get the real file.
+    while f.tell()!=offset+size:        
+        decompressBlock(f,f2)
+        if originalSize and f2.tell()==originalSize:
+            break
 
     f.close()
     f2.close()
@@ -110,87 +128,64 @@ def decompressPatchedPayload(basePath,baseOffset,deltaPath,deltaOffset,deltaSize
 
     #This is where magic happens: we need to splice bits from delta bundle and base bundle.
     #See here for details: http://pastebin.com/TftZEU9q
-    try:
-        while delta.tell()!=deltaOffset+deltaSize:
-            if instructionType==-1:
-                instructionType, instructionSize = split1v7(unpack(">I",delta.read(4))[0])
+    while delta.tell()!=deltaOffset+deltaSize:
+        if instructionType==-1:
+            instructionType, instructionSize = split1v7(unpack(">I",delta.read(4))[0])
 
-            if instructionType==0: #add base blocks without modification
-                for i in range(instructionSize):
-                    decompressBlock(base,f2)
-                    if f2.tell()==originalSize: break
-            elif instructionType==2: #make tiny fixes in the base block
-                blockSize=unpack(">H",delta.read(2))[0]+1
-                deltaBlockEnd=delta.tell()+instructionSize
+        if instructionType==0: #add base blocks without modification
+            for i in range(instructionSize):
+                decompressBlock(base,f2)
+                if f2.tell()==originalSize: break
+        elif instructionType==2: #make tiny fixes in the base block
+            blockSize=unpack(">H",delta.read(2))[0]+1
+            deltaBlockEnd=delta.tell()+instructionSize
 
-                baseBlock=io.BytesIO()
-                baseBlockSize=decompressBlock(base,baseBlock)
-                baseBlock.seek(0)
+            baseBlock=io.BytesIO()
+            baseBlockSize=decompressBlock(base,baseBlock)
+            baseBlock.seek(0)
 
-                while delta.tell()!=deltaBlockEnd:
-                    baseRead,baseSkip,addCount=unpack(">HBB",delta.read(4))
-                    f2.write(baseBlock.read(baseRead-baseBlock.tell()))
-                    baseBlock.seek(baseSkip,1)
-                    f2.write(delta.read(addCount))
+            while delta.tell()!=deltaBlockEnd:
+                baseRead,baseSkip,addCount=unpack(">HBB",delta.read(4))
+                f2.write(baseBlock.read(baseRead-baseBlock.tell()))
+                baseBlock.seek(baseSkip,1)
+                f2.write(delta.read(addCount))
 
-                f2.write(baseBlock.read(baseBlockSize-baseBlock.tell()))
-            elif instructionType==1: #make larger fixes in the base block
-                baseBlock=io.BytesIO()
-                baseBlockSize=decompressBlock(base,baseBlock)
-                baseBlock.seek(0)
+            f2.write(baseBlock.read(baseBlockSize-baseBlock.tell()))
+        elif instructionType==1: #make larger fixes in the base block
+            baseBlock=io.BytesIO()
+            baseBlockSize=decompressBlock(base,baseBlock)
+            baseBlock.seek(0)
 
-                for i in range(instructionSize):
-                    baseRead,baseSkip=unpack(">HH",delta.read(4))
-                    f2.write(baseBlock.read(baseRead-baseBlock.tell()))
-                    baseBlock.seek(baseSkip,1)
-                    decompressBlock(delta,f2)
+            for i in range(instructionSize):
+                baseRead,baseSkip=unpack(">HH",delta.read(4))
+                f2.write(baseBlock.read(baseRead-baseBlock.tell()))
+                baseBlock.seek(baseSkip,1)
+                decompressBlock(delta,f2)
 
-                f2.write(baseBlock.read(baseBlockSize-baseBlock.tell()))
-            elif instructionType==3: #add delta blocks directly to the payload
-                for i in range(instructionSize):
-                    decompressBlock(delta,f2)
-                    if f2.tell()==originalSize: break
-            elif instructionType==4: #skip entire blocks, do not increase currentSize at all
-                for i in range(instructionSize):
-                    uncompressedSize,comType,compressedSize=readBlockHeader(base)
-                    base.seek(compressedSize,1)
-            else:
-                raise Exception("Unknown payload type: %02x Delta offset: %08x" % (instructionType,delta.tell()-0x04))
+            f2.write(baseBlock.read(baseBlockSize-baseBlock.tell()))
+        elif instructionType==3: #add delta blocks directly to the payload
+            for i in range(instructionSize):
+                decompressBlock(delta,f2)
+                if f2.tell()==originalSize: break
+        elif instructionType==4: #skip entire blocks, do not increase currentSize at all
+            for i in range(instructionSize):
+                uncompressedSize,comType,compressedSize=readBlockHeader(base)
+                base.seek(compressedSize,1)
+        else:
+            raise Exception("Unknown payload type: 0x%02x Delta offset: 0x%08x" % (instructionType,delta.tell()-0x04))
 
-            instructionType=-1
-            if f2.tell()==originalSize: break
+        instructionType=-1
+        if f2.tell()==originalSize: break
 
-        #May need to get the rest from the base bundle (infinite type 0 instructions).
-        while f2.tell()!=originalSize:
-            decompressBlock(base,f2)
-
-    except:
-        #Clean up the file in case of an exception.
-        base.close()
-        delta.close()
-        f2.close()
-        os.remove(f2.name)
-        raise
+    #May need to get the rest from the base bundle (infinite type 0 instructions).
+    while f2.tell()!=originalSize:
+        decompressBlock(base,f2)
 
     base.close()
     delta.close()
     f2.close()
 
-class CatEntry:
-    def __init__(self,f,casDirectory):
-        self.offset, self.size, casNum = unpack("<III",f.read(12))
-        self.path=os.path.join(casDirectory,"cas_%02d.cas" % casNum)
 
-def readCat(catDict, catPath):
-    """Take a dict and fill it using a cat file: sha1 vs (offset, size, cas path)"""
-    cat=cas.unXor(catPath)
-    cat.seek(0,2) #get eof
-    catSize=cat.tell()
-    cat.seek(16) #skip nyan
-    casDirectory=os.path.dirname(catPath) #get the full path so every entry knows whether it's from the patched or unpatched cat.
-    while cat.tell()<catSize:
-        sha1=cat.read(20)
-        catDict[sha1]=CatEntry(cat,casDirectory)
 
 def dump(tocPath,baseTocPath,outPath):
     """Take the filename of a toc and dump all files to the targetFolder."""
@@ -207,7 +202,7 @@ def dump(tocPath,baseTocPath,outPath):
     #Additionally, add some common fields to the ebx/res/chunks entries so they can be treated the same.
     #=> 6 cases.
 
-    toc=cas.readToc(tocPath)
+    toc=dbo.readToc(tocPath)
     if not (toc.get("bundles") or toc.get("chunks")): return #there's nothing to extract (the sb might not even exist)
 
     sbPath=tocPath[:-3]+"sb"
@@ -225,7 +220,7 @@ def dump(tocPath,baseTocPath,outPath):
             if tocEntry.get("base"): continue #Patched bundle. However, use the unpatched bundle because no file was patched at all.
 
             sb.seek(tocEntry.get("offset"))
-            bundle=cas.Entry(sb)
+            bundle=dbo.DbObject(sb)
 
             #make empty lists for every type to get rid of key errors(=> less indendation)
             for listType in ("ebx","res","chunks"):
@@ -252,13 +247,13 @@ def dump(tocPath,baseTocPath,outPath):
                 writePayload(entry,path)
 
             for entry in bundle.get("chunks"): #id sha1 size logicalOffset logicalSize chunkMeta::meta
-                path=os.path.join(chunkPath,entry.get("id").hex()+".chunk")
+                path=os.path.join(chunkPath,formatGuid(entry.get("id"),False)+".chunk")
                 writePayload(entry,path)
 
         #Deal with the chunks which are defined directly in the toc.
         #These chunks do NOT know their originalSize.
         for entry in toc.get("chunks"): # id sha1
-            targetPath=os.path.join(chunkPathToc,entry.get("id").hex()+".chunk")
+            targetPath=os.path.join(chunkPathToc,formatGuid(entry.get("id"),False)+".chunk")
             casChunkPayload(entry,targetPath)
     else:
         for tocEntry in toc.get("bundles"): #id offset size, size is redundant
@@ -269,7 +264,7 @@ def dump(tocPath,baseTocPath,outPath):
             if tocEntry.get("delta"):
                 #The sb currently points at the delta file.
                 #Read the unpatched toc of the same name to get the base bundle.
-                baseToc=cas.readToc(baseTocPath)
+                baseToc=dbo.readToc(baseTocPath)
                 for baseTocEntry in baseToc.get("bundles"):
                     if baseTocEntry.get("id").lower() == tocEntry.get("id").lower():
                         break
@@ -297,16 +292,17 @@ def dump(tocPath,baseTocPath,outPath):
                 writePayload(entry,path,sourcePath)
 
             for entry in bundle.chunks:
-                path=os.path.join(chunkPath,entry.id.hex()+".chunk")
+                path=os.path.join(chunkPath,formatGuid(entry.id,True)+".chunk")
                 writePayload(entry,path,sourcePath)
 
         #Deal with the chunks which are defined directly in the toc.
         #These chunks do NOT know their originalSize.
         for entry in toc.get("chunks"): # id offset size
-            targetPath=os.path.join(chunkPathToc,entry.get("id").hex()+".chunk")
+            targetPath=os.path.join(chunkPathToc,formatGuid(entry.get("id"),False)+".chunk")
             noncasChunkPayload(entry,targetPath,sbPath)
 
     sb.close()
+
 
 def prepareDir(targetPath):
     if os.path.exists(targetPath): return True
@@ -314,12 +310,20 @@ def prepareDir(targetPath):
     if not os.path.exists(dirName): os.makedirs(dirName) #make the directory for the dll
     #print(targetPath)
 
+def formatGuid(data,bigEndian):
+    guid=ebx.Guid(data,bigEndian)
+    return guid.format()
+
+
 
 #for each bundle, the dump script selects one of these six functions
 def casPayload(bundleEntry, targetPath):
-    if prepareDir(targetPath): return
-    catEntry=cat[bundleEntry.get("sha1")]
-    decompressPayload(catEntry.path,catEntry.offset,catEntry.size,bundleEntry.get("originalSize"),targetPath)
+    try:
+        if prepareDir(targetPath): return
+        catEntry=cat[bundleEntry.get("sha1")]
+        decompressPayload(catEntry.path,catEntry.offset,catEntry.size,bundleEntry.get("originalSize"),targetPath)
+    except:
+        return
 
 def casPatchedPayload(bundleEntry, targetPath):
     if prepareDir(targetPath): return
@@ -334,10 +338,12 @@ def casPatchedPayload(bundleEntry, targetPath):
         casPayload(bundleEntry, targetPath) #if casPatchType is not 2, use the unpatched function.
 
 def casChunkPayload(entry,targetPath):
-    if prepareDir(targetPath): return
-    catEntry=cat[entry.get("sha1")]
-    decompressPayload(catEntry.path,catEntry.offset,catEntry.size,None,targetPath)
-
+    try:
+        if prepareDir(targetPath): return
+        catEntry=cat[entry.get("sha1")]
+        decompressPayload(catEntry.path,catEntry.offset,catEntry.size,None,targetPath)
+    except:
+        return
 
 
 def noncasPayload(entry, targetPath, sourcePath):
@@ -355,51 +361,134 @@ def noncasChunkPayload(entry, targetPath, sourcePath):
     if prepareDir(targetPath): return
     decompressPayload(sourcePath,entry.get("offset"),entry.get("size"),None,targetPath)
 
+
+
+def dumpSuperBundle(tocName,dataDir,patchDir,outDir):
+    tocPath=os.path.join(dataDir,os.path.normpath(tocName)+".toc")
+    if not os.path.isfile(tocPath): return
+    print(tocName)
+
+    #Check if there's a patched version and extract it first.
+    patchedName=os.path.join(patchDir,os.path.normpath(tocName)+".toc")
+    if os.path.isfile(patchedName):
+        dump(patchedName,tocPath,outDir)
+
+    dump(tocPath,None,outDir)
+
+
+
+#Take a dict and fill it using a cat file: sha1 vs (offset, size, cas path)
+#Cat files are always little endian.
+class CatEntry:
+    def __init__(self,f,casDirectory,version):
+        self.offset,self.size=unpack("<II",f.read(8))
+        if version!=1: self.unk=unpack("<I",f.read(4))
+        casNum=unpack("<I",f.read(4))
+        self.path=os.path.join(casDirectory,"cas_%02d.cas" % casNum)
+
+def readCat1(catDict,catPath):
+    #2013, original version.
+    cat=dbo.unXor(catPath)
+    cat.seek(0,2) #get eof
+    catSize=cat.tell()
+    cat.seek(16) #skip nyan
+    casDirectory=os.path.dirname(catPath)
+
+    while cat.tell()<catSize:
+        sha1=cat.read(20)
+        catDict[sha1]=CatEntry(cat,casDirectory,1)
+
+def readCat2(catDict,catPath):
+    #2015, added the number of entries in the header and a new var (always 0?) to cat entry.
+    cat=dbo.unXor(catPath)
+    cat.seek(0,2) #get eof
+    cat.seek(16) #skip nyan
+    numEntries=unpack("<Q",cat.read(8))[0]
+    casDirectory=os.path.dirname(catPath)
+
+    for i in range(numEntries):
+        sha1=cat.read(20)
+        catDict[sha1]=CatEntry(cat,casDirectory,2)
+
+def readCat3(catDict,catPath):
+    #2017, added two new sections with unknown data. They're usually empty but FIFA 18 has some data in section 2.
+    cat=dbo.unXor(catPath)
+    cat.seek(0,2) #get eof
+    cat.seek(16) #skip nyan
+    numEntries, numEntries2, numEntries3 = unpack("<QQQ",cat.read(24))
+    casDirectory=os.path.dirname(catPath)
+
+    for i in range(numEntries):
+        sha1=cat.read(20)
+        catDict[sha1]=CatEntry(cat,casDirectory,3)
+
+
+
 #make the paths absolute and normalize the slashes
 gameDirectory=os.path.normpath(gameDirectory)
 targetDirectory=os.path.normpath(targetDirectory) #it's an absolute path already
 
-updateDirectory=os.path.join(gameDirectory,"Update")
-patchDirectory=os.path.join(updateDirectory,"Patch")
+#Load compression dictionary.
+f=open("comp_dict.bin","rb")
+compDictBuf=f.read()
+f.close()
+zstd_dict=ctypes.c_void_p(libzstd.ZSTD_createDDict(compDictBuf,len(compDictBuf)))
 
-def dumpRoot(root):
-    for dir0, dirs, ff in os.walk(os.path.join(root,"Data")):
-        for fname in ff:
-            if fname[-4:]==".toc":
-                fname=os.path.join(dir0,fname)
-                localPath=os.path.relpath(fname,root)
-                print(localPath)
-
-                #Check if there's a patched version and extract it first.
-                patchedName=os.path.join(patchDirectory,localPath)
-                if os.path.isfile(patchedName):
-                    dump(patchedName,fname,targetDirectory)
-
-                dump(fname,None,targetDirectory)
-
-
-#read cat file
 cat=dict()
-catPath=os.path.join(gameDirectory,r"Data\cas.cat") #Seems to always be in the same place
-if os.path.isfile(catPath):
-    print("Reading cat entries...")
-    readCat(cat,catPath)
 
-    # Check if there's a patched version.
-    patchedCat=os.path.join(patchDirectory,os.path.relpath(catPath,gameDirectory))
-    if os.path.isfile(patchedCat):
-        print("Reading patched cat entries...")
-        readCat(cat,patchedCat)
+#Load layout.toc
+tocLayout=dbo.readToc(os.path.join(gameDirectory,"Data","layout.toc"))
+if not tocLayout.getSubEntry("installManifest"):
+    #Old layout more similar to Frostbite 2 with a single cas.cat.
+    #Can also be non-cas.
+    dataDir=os.path.join(gameDirectory,"Data")
+    patchDir=os.path.join(gameDirectory,"Update","Patch","Data")
+    readCat=readCat1
 
-if os.path.isdir(updateDirectory):
-    #First, extract all expansion packs.
-    for dir in os.listdir(updateDirectory):
-        if not dir.startswith("Xpack"):
+    catPath=os.path.join(dataDir,"cas.cat") #Seems to always be in the same place
+    if os.path.isfile(catPath):
+        print("Reading cat entries...")
+        readCat(cat,catPath)
+
+        # Check if there's a patched version.
+        patchedCat=os.path.join(patchDir,os.path.relpath(catPath,dataDir))
+        if os.path.isfile(patchedCat):
+            print("Reading patched cat entries...")
+            readCat(cat,patchedCat)
+
+    print("Extracting superbundles...")
+    for entry in tocLayout.get("superBundles"):
+        dumpSuperBundle(entry.get("name"),dataDir,patchDir,targetDirectory)
+else:
+    #New version with multiple cats split into install groups, seen in 2015 and later games.
+    #Appears to always use cas.cat and never use delta bundles, patch just replaces bundles fully.
+    dataDir=os.path.join(gameDirectory,"Data")
+    patchDir=os.path.join(gameDirectory,"Patch")
+
+    # Detect cat version.
+    if tocLayout.get("maxTotalSize"):
+        readCat=readCat2
+    else:
+        readCat=readCat3
+
+    #Read all cat files.
+    for entry in tocLayout.getSubEntry("installManifest").get("installChunks"):
+        catName=entry.get("installBundle")
+        if not catName:
             continue
 
-        print("Extracting expansion pack %s..." % dir)
-        dumpRoot(os.path.join(updateDirectory,dir))
+        print("Reading %s/cas.cat..." % catName)
+        catPath=os.path.join(dataDir,os.path.normpath(catName),"cas.cat")
+        readCat(cat,catPath)
 
-#Now extract the base game.
-print("Extracting main game...")
-dumpRoot(gameDirectory)
+        # Check if there's a patched version.
+        patchedCat=os.path.join(patchDir,os.path.relpath(catPath,dataDir))
+        if os.path.isfile(patchedCat):
+            print("Reading patched %s/cas.cat..." % catName)
+            readCat(cat,patchedCat)
+
+    print("Extracting superbundles...")
+    for entry in tocLayout.get("superBundles"):
+        dumpSuperBundle(entry.get("name"),dataDir,patchDir,targetDirectory)
+
+libzstd.ZSTD_freeDDict(zstd_dict)

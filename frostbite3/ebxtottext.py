@@ -2,7 +2,7 @@ import os
 from struct import unpack,pack
 import ebx
 
-#Choose where you dumped the files and where to put the resulting TXT files:
+#Choose where you dumped the files and where to put the resulting TXT files.
 dumpDirectory   = r"E:\GameRips\NFS\NFSR\pc\dump"
 targetDirectory = r"E:\GameRips\NFS\NFSR\pc\ebx"
 inputFolder     = r"audio\music"

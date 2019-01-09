@@ -1,6 +1,7 @@
-import sys
-import os
-from struct import unpack, pack
+#This is essentially a binary JSON type container.
+#Each entry can hold a value of a specic type or more entries embedded into it.
+#Values are always little endian.
+from struct import unpack
 import io
 from collections import OrderedDict
 
@@ -44,9 +45,7 @@ def unXor(path):
 
     return io.BytesIO(data)
 
-class Entry:
-    #This is essentially a serialized keyvalues type container.
-    #Each entry can hold a value of a specic type or more entries embedded into it.
+class DbObject:
     def __init__(self,toc,defaultVal=None): #read the data from file
         if not toc:
             self.content=defaultVal
@@ -70,7 +69,7 @@ class Entry:
             entrySize=read128(toc)
             endPos=toc.tell()+entrySize
             while toc.tell()<endPos-1: #-1 because of final nullbyte
-                content=Entry(toc)
+                content=DbObject(toc)
                 self.elems[content.name]=content
             if toc.read(1)!=b"\x00": raise Exception(r"Entry does not end with \x00 byte. Position: "+str(toc.tell()))
         elif self.typ==0x13: self.content=toc.read(read128(toc)) #blob
@@ -84,7 +83,7 @@ class Entry:
             entries=list()
             endPos=toc.tell()+self.listLength
             while toc.tell()<endPos-1: #lists end on nullbyte
-                entries.append(Entry(toc))
+                entries.append(DbObject(toc))
             self.content=entries
             if toc.read(1)!=b"\x00": raise Exception(r"List does not end with \x00 byte. Position: "+str(toc.tell()))
         else: raise Exception("Unknown type: "+hex(self.typ)+" "+hex(toc.tell()))
@@ -99,7 +98,7 @@ class Entry:
         except: return None
 
     def set(self,fieldName,val):
-        self.elems[fieldName]=Entry(None,val)
+        self.elems[fieldName]=DbObject(None,val)
 
     def writeKeyValues(self,f,lvl=0,name=""):
         if not self.flags&0x04:
@@ -128,4 +127,4 @@ class Entry:
         f.write("\n")
 
 def readToc(tocPath): #take a filename, decrypt the file and make an entry out of it
-    return Entry(unXor(tocPath))
+    return DbObject(unXor(tocPath))
