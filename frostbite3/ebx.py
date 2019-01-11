@@ -726,9 +726,15 @@ class Dbx:
             return
 
         target=os.path.join(self.outputFolder,self.trueFilename)
-        if self.prim.get("HasVp6"): target+=".vp6"
-        elif self.prim.get("HasVp8"): target+=".vp8"
-        else: print("Unknown movie type")
+        try:
+            #Detect type.
+            if self.prim.get("HasVp6"): target+=".vp6"
+            elif self.prim.get("HasVp8"): target+=".vp8"
+            else: print("Unknown movie type")
+        except:
+            #Early version, VP6 only.
+            target+=".vp6"
+
         targetFolder=os.path.dirname(target)
         if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
         shutil.copyfile(currentChunkName,target)

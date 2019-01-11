@@ -18,6 +18,7 @@ To eleborate on Frostbite asset structure, all data is contained inside superbun
  * ebx - these are so called asset nodes; this format is the cornerstone of Frostbite, they're used to reference the actual game assets stored inside res and chunk files as well as store game scripts, configurations, etc
  * res - these contain assets like meshes, animations, shaders, texture headers, sometimes movies
  * chunk - these contain assets like textures, movies, sounds, etc
+
 Additionally, superbundle itself can also contain chunks.
  
 So if you want to get the game assets you need to take the EBX files and use them to find your data inside the chunks. This is what ebxtoasset script does.
