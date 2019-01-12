@@ -318,6 +318,7 @@ def formatGuid(data,bigEndian):
 
 #for each bundle, the dump script selects one of these six functions
 def casPayload(bundleEntry, targetPath):
+    #Some files may be from localizations user doesn't have installed.
     try:
         if prepareDir(targetPath): return
         catEntry=cat[bundleEntry.get("sha1")]
@@ -338,6 +339,7 @@ def casPatchedPayload(bundleEntry, targetPath):
         casPayload(bundleEntry, targetPath) #if casPatchType is not 2, use the unpatched function.
 
 def casChunkPayload(entry,targetPath):
+    #Some files may be from localizations user doesn't have installed.
     try:
         if prepareDir(targetPath): return
         catEntry=cat[entry.get("sha1")]
@@ -473,12 +475,16 @@ else:
 
     #Read all cat files.
     for entry in tocLayout.getSubEntry("installManifest").get("installChunks"):
-        catName=entry.get("installBundle")
+        catName=entry.get("installBundle")      
         if not catName:
             continue
 
-        print("Reading %s/cas.cat..." % catName)
+        #Allow skipping localized cats since user will not have all localizations installed.
         catPath=os.path.join(dataDir,os.path.normpath(catName),"cas.cat")
+        if not entry.get("Language") and not os.path.isfile(catPath):
+            raise Exception("Cat does not exist: %s" % catPath)
+
+        print("Reading %s/cas.cat..." % catName)        
         readCat(cat,catPath)
 
         # Check if there's a patched version.
