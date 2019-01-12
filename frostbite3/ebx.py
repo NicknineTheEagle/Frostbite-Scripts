@@ -566,6 +566,7 @@ class Dbx:
 
         if self.prim.desc.name=="SoundWaveAsset": self.extractSoundWaveAsset()
         elif self.prim.desc.name=="NewWaveAsset": self.extractNewWaveAsset()
+        elif self.prim.desc.name=="LocalizedWaveAsset" : self.extractLocalizedWaveAsset()
         elif self.prim.desc.name=="HarmonySampleBankAsset": self.extractHarmonyAsset()
         elif self.prim.desc.name=="MovieTextureAsset": self.extractMovieAsset()
         elif self.prim.desc.name=="MovieTexture2Asset": self.extractMovie2Asset()
@@ -610,6 +611,30 @@ class Dbx:
                 break
 
         f2.close()
+
+    def collectSPS(self,f,totalSize):
+        #Go through the chunk and collect all the sounds present in it.
+        soundOffsets=[]
+        offset=0
+
+        while offset!=totalSize:
+            f.seek(offset)
+            if f.read(1)!=b"\x48":
+                raise Exception("Wrong SPS header.")
+
+            soundOffsets.append(offset)
+            # 0x48=header, 0x44=normal block, 0x45=last block (empty)
+            while True:
+                f.seek(offset)
+                blockStart=unpack(">I",f.read(4))[0]
+                blockId=(blockStart&0xFF000000)>>24
+                blockSize=blockStart&0x00FFFFFF
+                offset+=blockSize
+
+                if blockId==0x45:
+                    break
+
+        return soundOffsets
 
     def extractChunk(self,chnk,ext):
         currentChunkName=self.findChunk(chnk)      
@@ -715,19 +740,62 @@ class Dbx:
             if not currentChunkName:
                 return
 
-            #Some files have seek table at the start and I don't know how to find out its size yet.
+            #Some files have a seek table at the start and I don't know how to find out its size yet.
             #There's a value that appears to be related to size at 0x08, not sure how it works.
             if self.prim.get("IsSeekable").value==True:
                 print("TODO: Chunk %s has seek table, size unknown" % ChunkId.format())
                 return
-            
-            target=os.path.join(self.outputFolder,self.trueFilename)
-            if len(Chunks)>1:
-                target+" "+str(i)
-            target+=".sps"
-            
+
             f=open(currentChunkName,"rb")
-            self.extractSPS(f,0,target)
+            
+            #Each chunk can contain multiple sounds going one after another, these are presumably variations.
+            #Collect offsets of each sound.
+            soundOffsets=self.collectSPS(f,ChunkSize)
+            
+            for j in range(len(soundOffsets)):
+                offset=soundOffsets[j]
+                target=os.path.join(self.outputFolder,self.trueFilename)
+                if len(Chunks)>1 or len(soundOffsets)>1:
+                    target+=" "+str(i)+" "+str(j)
+                target+=".sps"
+                    
+                self.extractSPS(f,offset,target)
+
+            f.close()
+
+    def extractLocalizedWaveAsset(self):
+        print(self.trueFilename)
+
+        Chunks=self.prim.get("$::NewWaveAsset/$::SoundWaveAssetBase/$::SoundDataAsset/Chunks::SoundDataChunk-Array").fields
+        for i in range(len(Chunks)):
+            field=Chunks[i]
+            ChunkId=field.value.get("ChunkId").value      
+            ChunkSize=field.value.get("ChunkSize").value
+            currentChunkName=self.findChunk(ChunkId)
+            if not currentChunkName:
+                return
+
+            #Some files have a seek table at the start and I don't know how to find out its size yet.
+            #There's a value that appears to be related to size at 0x08, not sure how it works.
+            if self.prim.get("$::NewWaveAsset/IsSeekable").value==True:
+                print("TODO: Chunk %s has seek table, size unknown" % ChunkId.format())
+                return
+
+            f=open(currentChunkName,"rb")
+            
+            #Each chunk can contain multiple sounds going one after another, these are presumably variations.
+            #Collect offsets of each sound.
+            soundOffsets=self.collectSPS(f,ChunkSize)
+            
+            for j in range(len(soundOffsets)):
+                offset=soundOffsets[j]
+                target=os.path.join(self.outputFolder,self.trueFilename)
+                if len(Chunks)>1 or len(soundOffsets)>1:
+                    target+=" "+str(i)+" "+str(j)
+                target+=".sps"
+                    
+                self.extractSPS(f,offset,target)
+
             f.close()
 
     def extractHarmonyAsset(self):
