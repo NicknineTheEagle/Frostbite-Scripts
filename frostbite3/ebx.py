@@ -567,6 +567,7 @@ class Dbx:
         if self.prim.desc.name=="SoundWaveAsset": self.extractSoundWaveAsset()
         elif self.prim.desc.name=="NewWaveAsset": self.extractNewWaveAsset()
         elif self.prim.desc.name=="MovieTextureAsset": self.extractMovieAsset()
+        elif self.prim.desc.name=="MovieTexture2Asset": self.extractMovie2Asset()
 
     def findChunk(self,chnk):
         if chnk.isNull():
@@ -735,6 +736,18 @@ class Dbx:
             #Early version, VP6 only.
             target+=".vp6"
 
+        targetFolder=os.path.dirname(target)
+        if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
+        shutil.copyfile(currentChunkName,target)
+
+    def extractMovie2Asset(self):
+        print(self.trueFilename)
+
+        currentChunkName=self.findChunk(self.prim.get("ChunkGuid").value)      
+        if not currentChunkName:
+            return
+
+        target=os.path.join(self.outputFolder,self.trueFilename) + ".webm"
         targetFolder=os.path.dirname(target)
         if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
         shutil.copyfile(currentChunkName,target)
