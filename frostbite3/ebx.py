@@ -566,6 +566,7 @@ class Dbx:
 
         if self.prim.desc.name=="SoundWaveAsset": self.extractSoundWaveAsset()
         elif self.prim.desc.name=="NewWaveAsset": self.extractNewWaveAsset()
+        elif self.prim.desc.name=="HarmonySampleBankAsset": self.extractHarmonyAsset()
         elif self.prim.desc.name=="MovieTextureAsset": self.extractMovieAsset()
         elif self.prim.desc.name=="MovieTexture2Asset": self.extractMovie2Asset()
 
@@ -609,6 +610,16 @@ class Dbx:
                 break
 
         f2.close()
+
+    def extractChunk(self,chnk,ext):
+        currentChunkName=self.findChunk(chnk)      
+        if not currentChunkName:
+            return
+
+        target=os.path.join(self.outputFolder,self.trueFilename)+ext
+        targetFolder=os.path.dirname(target)
+        if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
+        shutil.copyfile(currentChunkName,target)
         
     def extractSoundWaveAsset(self):
         print(self.trueFilename)
@@ -719,36 +730,45 @@ class Dbx:
             self.extractSPS(f,0,target)
             f.close()
 
+    def extractHarmonyAsset(self):
+        print(self.trueFilename)
+
+        Chunks=self.prim.get("$::SoundDataAsset/Chunks::SoundDataChunk-Array").fields
+
+        RamChunkIndex=self.prim.get("RamChunkIndex").value
+        if RamChunkIndex!=0xff:
+            chnk=Chunks[RamChunkIndex].value.get("ChunkId").value
+            self.extractChunk(chnk,".sbr")
+
+        DebugChunkIndex=self.prim.get("DebugChunkIndex").value
+        if DebugChunkIndex!=0xff:
+            chnk=Chunks[DebugChunkIndex].value.get("ChunkId").value
+            self.extractChunk(chnk,".sbd")
+
+        StreamChunkIndex=self.prim.get("StreamChunkIndex").value
+        if StreamChunkIndex!=0xff:
+            chnk=Chunks[StreamChunkIndex].value.get("ChunkId").value
+            self.extractChunk(chnk,".sbs")
+
     def extractMovieAsset(self):
         print(self.trueFilename)
 
-        currentChunkName=self.findChunk(self.prim.get("ChunkGuid").value)      
-        if not currentChunkName:
-            return
-
-        target=os.path.join(self.outputFolder,self.trueFilename)
+        ext=""
         try:
             #Detect type.
-            if self.prim.get("HasVp6"): target+=".vp6"
-            elif self.prim.get("HasVp8"): target+=".vp8"
+            if self.prim.get("HasVp6"): ext=".vp6"
+            elif self.prim.get("HasVp8"): ext=".vp8"
             else: print("Unknown movie type")
         except:
             #Early version, VP6 only.
-            target+=".vp6"
+            ext=".vp6"
 
-        targetFolder=os.path.dirname(target)
-        if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
-        shutil.copyfile(currentChunkName,target)
+        chnk=self.prim.get("ChunkGuid").value
+        self.extractChunk(chnk,ext)
 
     def extractMovie2Asset(self):
         print(self.trueFilename)
 
-        currentChunkName=self.findChunk(self.prim.get("ChunkGuid").value)      
-        if not currentChunkName:
-            return
-
-        target=os.path.join(self.outputFolder,self.trueFilename) + ".webm"
-        targetFolder=os.path.dirname(target)
-        if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
-        shutil.copyfile(currentChunkName,target)
+        chnk=self.prim.get("ChunkGuid").value
+        self.extractChunk(chnk,".webm")
 
