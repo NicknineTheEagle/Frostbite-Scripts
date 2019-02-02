@@ -225,10 +225,10 @@ def dump(tocPath,baseTocPath,outPath):
                 unpatchedSb.close()
                 bundleStream.seek(0)    
 
-                bundle=Bundle.Bundle(bundleStream)
+                bundle=noncas.Bundle(bundleStream)
                 sb2=bundleStream           
             else:
-                bundle=Bundle.Bundle(sb)
+                bundle=noncas.Bundle(sb)
                 sb2=sb
 
             for entry in bundle.ebxEntries:
