@@ -839,4 +839,3 @@ class Dbx:
 
         chnk=self.prim.get("ChunkGuid").value
         self.extractChunk(chnk,".webm")
-

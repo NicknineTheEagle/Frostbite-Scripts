@@ -30,7 +30,15 @@ def unXor(path):
     
     f=open(path,"rb")
     magic=f.read(4)
-    if magic in (b"\x00\xD1\xCE\x00",b"\x00\xD1\xCE\x01",b"\x00\xD1\xCE\x03"): #the file has a signature, but an empty key; it's not encrypted
+    if magic in (b"\x00\xD1\xCE\x00"): #the file is XOR encrypted and has a signature
+        f.seek(296) #skip the signature
+        key=[f.read(1)[0]^0x7b for i in range(260)] #bytes 257 258 259 are not used
+        encryptedData=f.read()
+        size=len(encryptedData)
+        data=bytearray(size) #initalize the buffer
+        for i in range(size):
+            data[i]=key[i%257]^encryptedData[i]
+    elif magic in (b"\x00\xD1\xCE\x01",b"\x00\xD1\xCE\x03"): #the file has a signature, but an empty key; it's not encrypted
         f.seek(556) #skip signature + skip empty key
         data=f.read()
     else: #the file is not encrypted; no key + no signature

@@ -20,7 +20,7 @@ def seekPayloadBlock(f):
     compressedSize=num2&0x000FFFFF
     if comType not in (0x00,0x09,0x0f,0x15): raise Exception("Unknown compression type 0x%02x at 0x%08x in %s" % (comType,f.tell()-8,f.name))
     f.seek(compressedSize,1)
-    return decompressedSize
+    return uncompressedSize
 
 def unpatchedBundle(base):
     """Read unpatched noncas bundle. Assign offset and size to each bundle entry. Return the bundle.

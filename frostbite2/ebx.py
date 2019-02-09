@@ -528,7 +528,7 @@ class Dbx:
         if os.path.isfile(chnkPath):
             return chnkPath
         
-        print("Chunk does not exist: "+chnk.format())
+        print("Chunk does not exist: "+ChunkId)
         return None
 
     def extractSPS(self,f,offset,target):

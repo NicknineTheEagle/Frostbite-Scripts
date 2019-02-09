@@ -467,8 +467,8 @@ else:
     dataDir=os.path.join(gameDirectory,"Data")
     patchDir=os.path.join(gameDirectory,"Patch")
 
-    # Detect cat version.
-    if tocLayout.get("maxTotalSize"):
+    #Detect cat version.
+    if tocLayout.getSubEntry("installManifest").get("maxTotalSize"):
         readCat=readCat2
     else:
         readCat=readCat3
