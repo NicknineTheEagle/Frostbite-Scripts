@@ -369,19 +369,19 @@ if os.path.isfile(catPath):
     print("Reading cat entries...")
     readCat(cat,catPath)
 
-    # Check if there's a patched version.
+    #Check if there's a patched version.
     patchedCat=os.path.join(patchDirectory,os.path.relpath(catPath,gameDirectory))
     if os.path.isfile(patchedCat):
         print("Reading patched cat entries...")
         readCat(cat,patchedCat)
 
 if os.path.isdir(updateDirectory):
-    #First, extract all expansion packs.
+    #First, extract all DLC.
     for dir in os.listdir(updateDirectory):
         if not dir.startswith("Xpack"):
             continue
 
-        print("Extracting expansion pack %s..." % dir)
+        print("Extracting DLC %s..." % dir)
         dumpRoot(os.path.join(updateDirectory,dir))
 
 #Now extract the base game.

@@ -363,26 +363,11 @@ def noncasChunkPayload(entry, targetPath, sourcePath):
     if prepareDir(targetPath): return
     decompressPayload(sourcePath,entry.get("offset"),entry.get("size"),None,targetPath)
 
-
-
-def dumpSuperBundle(tocName,dataDir,patchDir,outDir):
-    tocPath=os.path.join(dataDir,os.path.normpath(tocName)+".toc")
-    if not os.path.isfile(tocPath): return
-    print(tocName)
-
-    #Check if there's a patched version and extract it first.
-    patchedName=os.path.join(patchDir,os.path.normpath(tocName)+".toc")
-    if os.path.isfile(patchedName):
-        dump(patchedName,tocPath,outDir)
-
-    dump(tocPath,None,outDir)
-
-
-
 #Take a dict and fill it using a cat file: sha1 vs (offset, size, cas path)
 #Cat files are always little endian.
 class CatEntry:
     def __init__(self,f,casDirectory,version):
+        self.sha1=f.read(20)
         self.offset,self.size=unpack("<II",f.read(8))
         if version!=1: self.unk=unpack("<I",f.read(4))
         casNum=unpack("<I",f.read(4))
@@ -397,20 +382,20 @@ def readCat1(catDict,catPath):
     casDirectory=os.path.dirname(catPath)
 
     while cat.tell()<catSize:
-        sha1=cat.read(20)
-        catDict[sha1]=CatEntry(cat,casDirectory,1)
+        catEntry=CatEntry(cat,casDirectory,1)
+        catDict[catEntry.sha1]=catEntry
 
 def readCat2(catDict,catPath):
     #2015, added the number of entries in the header and a new var (always 0?) to cat entry.
     cat=dbo.unXor(catPath)
     cat.seek(0,2) #get eof
     cat.seek(16) #skip nyan
-    numEntries=unpack("<Q",cat.read(8))[0]
+    numEntries,unk=unpack("<II",cat.read(8))
     casDirectory=os.path.dirname(catPath)
 
     for i in range(numEntries):
-        sha1=cat.read(20)
-        catDict[sha1]=CatEntry(cat,casDirectory,2)
+        catEntry=CatEntry(cat,casDirectory,2)
+        catDict[catEntry.sha1]=catEntry
 
 def readCat3(catDict,catPath):
     #2017, added two new sections with unknown data. They're usually empty but FIFA 18 has some data in section 2.
@@ -421,9 +406,23 @@ def readCat3(catDict,catPath):
     casDirectory=os.path.dirname(catPath)
 
     for i in range(numEntries):
-        sha1=cat.read(20)
-        catDict[sha1]=CatEntry(cat,casDirectory,3)
+        catEntry=CatEntry(cat,casDirectory,3)
+        catDict[catEntry.sha1]=catEntry
 
+def dumpRoot(dataDir,patchDir):
+    for dir0, dirs, ff in os.walk(dataDir):
+        for fname in ff:
+            if fname[-4:]==".toc":
+                fname=os.path.join(dir0,fname)
+                localPath=os.path.relpath(fname,dataDir)
+                print(localPath)
+
+                #Check if there's a patched version and extract it first.
+                patchedName=os.path.join(patchDir,localPath)
+                if os.path.isfile(patchedName):
+                    dump(patchedName,fname,targetDirectory)
+
+                dump(fname,None,targetDirectory)
 
 
 #make the paths absolute and normalize the slashes
@@ -441,10 +440,16 @@ cat=dict()
 #Load layout.toc
 tocLayout=dbo.readToc(os.path.join(gameDirectory,"Data","layout.toc"))
 if not tocLayout.getSubEntry("installManifest"):
-    #Old layout more similar to Frostbite 2 with a single cas.cat.
+    #Old layout similar to Frostbite 2 with a single cas.cat.
     #Can also be non-cas.
     dataDir=os.path.join(gameDirectory,"Data")
-    patchDir=os.path.join(gameDirectory,"Update","Patch","Data")
+    updateDir=os.path.join(gameDirectory,"Update")
+    patchDir=os.path.join(updateDir,"Patch","Data")
+
+    patchedLayout=os.path.join(patchDir,os.path.join(patchDir,"layout.toc"))
+    if os.path.isfile(patchedLayout):
+        tocLayout=dbo.readToc(patchedLayout)
+
     readCat=readCat1
 
     catPath=os.path.join(dataDir,"cas.cat") #Seems to always be in the same place
@@ -458,14 +463,27 @@ if not tocLayout.getSubEntry("installManifest"):
             print("Reading patched cat entries...")
             readCat(cat,patchedCat)
 
-    print("Extracting superbundles...")
-    for entry in tocLayout.get("superBundles"):
-        dumpSuperBundle(entry.get("name"),dataDir,patchDir,targetDirectory)
+    if os.path.isdir(updateDir):
+        #First, extract all DLC.
+        for dir in os.listdir(updateDir):
+            if dir=="Patch":
+                continue
+
+            print("Extracting DLC %s..." % dir)
+            dumpRoot(os.path.join(updateDir,dir,"Data"),patchDir)
+
+    #Now extract the base game.
+    print("Extracting main game...")
+    dumpRoot(dataDir,patchDir)
 else:
     #New version with multiple cats split into install groups, seen in 2015 and later games.
     #Appears to always use cas.cat and never use delta bundles, patch just replaces bundles fully.
     dataDir=os.path.join(gameDirectory,"Data")
     patchDir=os.path.join(gameDirectory,"Patch")
+
+    patchedLayout=os.path.join(patchDir,os.path.join(patchDir,"layout.toc"))
+    if os.path.isfile(patchedLayout):
+        tocLayout=dbo.readToc(patchedLayout)
 
     #Detect cat version.
     if tocLayout.getSubEntry("installManifest").get("maxTotalSize"):
@@ -479,10 +497,11 @@ else:
         if not catName:
             continue
 
-        #Allow skipping localized cats since user will not have all localizations installed.
+        #Allow skipping optional install chunks (localizations and optional DLCs).
         catPath=os.path.join(dataDir,os.path.normpath(catName),"cas.cat")
-        if not entry.get("Language") and not os.path.isfile(catPath):
-            raise Exception("Cat does not exist: %s" % catPath)
+        if not entry.get("Language") and not entry.get("optionalDLC"):
+            if not os.path.isfile(catPath):
+                raise Exception("Cat does not exist: %s" % catPath)
 
         print("Reading %s/cas.cat..." % catName)        
         readCat(cat,catPath)
@@ -493,8 +512,7 @@ else:
             print("Reading patched %s/cas.cat..." % catName)
             readCat(cat,patchedCat)
 
-    print("Extracting superbundles...")
-    for entry in tocLayout.get("superBundles"):
-        dumpSuperBundle(entry.get("name"),dataDir,patchDir,targetDirectory)
+    print("Extracting game...")
+    dumpRoot(dataDir,patchDir)
 
 libzstd.ZSTD_freeDDict(zstd_dict)
