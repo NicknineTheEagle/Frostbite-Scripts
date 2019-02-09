@@ -140,7 +140,7 @@ def lp(path): #long pathnames
 
 class Delta:
     def __init__(self,sb):
-        self.size,self.fromUnpatched,self.offset=unpack(">IIQ",sb.read(16))
+        self.size,self.type,self.offset=unpack(">IiQ",sb.read(16))
 
 def dump(tocPath,baseTocPath,outPath):
     toc=dbo.readToc(tocPath)
@@ -216,11 +216,14 @@ def dump(tocPath,baseTocPath,outPath):
                 unpatchedSb=openSbFile(unpatchedPath)
 
                 for delta in deltas:
-                    if not delta.fromUnpatched:
-                        bundleStream.write(sb.read(delta.size))
-                    else:
+                    if delta.type==1:
                         unpatchedSb.seek(delta.offset)
                         bundleStream.write(unpatchedSb.read(delta.size))
+                    elif delta.type==0:
+                        bundleStream.write(sb.read(delta.size))
+                    else:
+                        raise Exception("Unknown delta type %d in patched bundle at 0x%08x" % (delta.type,tocEntry.get("offset")))
+
                 unpatchedSb.close()
                 bundleStream.seek(0)    
 
