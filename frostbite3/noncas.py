@@ -18,7 +18,7 @@ def seekPayloadBlock(f):
     uncompressedSize=num1&0x00FFFFFF
     comType=(num2&0xFF000000)>>24
     compressedSize=num2&0x000FFFFF
-    if comType not in (0x00,0x09,0x0f,0x15): raise Exception("Unknown compression type 0x%02x at 0x%08x in %s" % (comType,f.tell()-8,f.name))
+    if comType not in (0x00,0x02,0x09,0x0f,0x15): raise Exception("Unknown compression type 0x%02x at 0x%08x in %s" % (comType,f.tell()-8,f.name))
     f.seek(compressedSize,1)
     return uncompressedSize
 
