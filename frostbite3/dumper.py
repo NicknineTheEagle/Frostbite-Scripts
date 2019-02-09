@@ -8,6 +8,7 @@ import os
 from struct import pack,unpack
 import io
 import ctypes
+import zlib
 import ebx
 
 #Adjust paths here.
@@ -90,6 +91,11 @@ def decompressBlock(f,f2):
         srcBuf=f.read(compressedSize)
         dstBuf=bytes(uncompressedSize)
         oodle.OodleLZ_Decompress(srcBuf,compressedSize,dstBuf,uncompressedSize,0,0,0,0,0,0,0,0,0,3)
+        f2.write(dstBuf)
+    elif comType==0x02:
+        #Block is compressed with Zlib.
+        srcBuf=f.read(compressedSize)
+        dstBuf=zlib.decompress(srcBuf)
         f2.write(dstBuf)
     elif comType==0x00:
         #No compression, just write this block as it is.
