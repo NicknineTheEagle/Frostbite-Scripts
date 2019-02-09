@@ -14,7 +14,7 @@ import ebx
 #Adjust paths here.
 #do yourself a favor and don't dump into the Users folder (or it might complain about permission)
 
-# Some X360 games have some SB files compressed with X360 compression. Point this at your xbdecompress.exe so that they can be decompressed.
+#Some X360 games have some SB files compressed with X360 compression. Point this at your xbdecompress.exe so that they can be decompressed.
 xbdecompressPath=r"E:\Utilities\xbcompress\xbdecompress.exe"
 
 gameDirectory=r"E:\Games\EA\NFSTheRun"
@@ -164,7 +164,7 @@ def dump(tocPath,baseTocPath,outPath):
 
             #make empty lists for every type to get rid of key errors(=> less indendation)
             for listType in ("ebx","dbx","res","chunks"):
-                if bundle.get(listType) == None:
+                if bundle.get(listType)==None:
                     bundle.set(listType,list())
 
             for entry in bundle.get("ebx"): #name sha1 size originalSize
@@ -197,7 +197,6 @@ def dump(tocPath,baseTocPath,outPath):
         #deal with noncas bundles
         for tocEntry in toc.get("bundles"): #id offset size, size is redundant         
             if tocEntry.get("base"): continue #Patched noncas bundle. However, use the unpatched bundle because no file was patched at all.
-            ## So I just skip the entire process and expect the user to extract all unpatched files on his own.
 
             sb.seek(tocEntry.get("offset"))
             
@@ -249,7 +248,7 @@ def dump(tocPath,baseTocPath,outPath):
             path=os.path.join(chunkPathToc,formatGuid(entry.get("id"),False)+".chunk")
             noncasHandlePayload(sb,entry.get("offset"),entry.get("size"),None,path)
 
-    # Clean up.
+    #Clean up.
     sb.close()
     for tempSb in tempSbFiles:
         os.remove(tempSb)
@@ -323,6 +322,7 @@ def openSbFile(sbPath):
 #Cat files are always little endian.
 class CatEntry:
     def __init__(self,f,casDirectory):
+        self.sha1=f.read(20)
         self.offset, self.size, casNum = unpack("<III",f.read(12))
         self.path=os.path.join(casDirectory,"cas_%02d.cas" % casNum)
 
@@ -333,57 +333,55 @@ def readCat(catDict, catPath):
     cat.seek(16) #skip nyan
     casDirectory=os.path.dirname(catPath)
     while cat.tell()<catSize:
-        sha1=cat.read(20)
-        catDict[sha1]=CatEntry(cat,casDirectory)
+        catEntry=CatEntry(cat,casDirectory)
+        catDict[catEntry.sha1]=catEntry
 
+def dumpRoot(dataDir,patchDir,outPath):
+    for dir0, dirs, ff in os.walk(dataDir):
+        for fname in ff:
+            if fname[-4:]==".toc":
+                fname=os.path.join(dir0,fname)
+                localPath=os.path.relpath(fname,dataDir)
+                print(localPath)
+
+                #Check if there's a patched version and extract it first.
+                patchedName=os.path.join(patchDir,localPath)
+                if os.path.isfile(patchedName):
+                    dump(patchedName,fname,outPath)
+
+                dump(fname,None,outPath)
 
 
 #make the paths absolute and normalize the slashes
 gameDirectory=os.path.normpath(gameDirectory)
 targetDirectory=os.path.normpath(targetDirectory) #it's an absolute path already
 
-updateDirectory=os.path.join(gameDirectory,"Update")
-patchDirectory=os.path.join(updateDirectory,"Patch")
-
-def dumpRoot(root):
-    dataPath=os.path.join(root,"Data")
-    for dir0, dirs, ff in os.walk(dataPath):
-        for fname in ff:
-            if fname[-4:]==".toc":
-                fname=os.path.join(dir0,fname)
-                localPath=os.path.relpath(fname,dataPath)
-                print(localPath)
-
-                #Check if there's a patched version and extract it first.
-                patchedName=os.path.join(patchDirectory,"Data",localPath)
-                if os.path.isfile(patchedName):
-                    dump(patchedName,fname,targetDirectory)
-
-                dump(fname,None,targetDirectory)
-
+dataDir=os.path.join(gameDirectory,"Data")
+updateDir=os.path.join(gameDirectory,"Update")
+patchDir=os.path.join(updateDir,"Patch","Data")
 
 #read cat file
 cat=dict()
-catPath=os.path.join(gameDirectory,r"Data\cas.cat") #Seems to always be in the same place
+catPath=os.path.join(dataDir,"cas.cat") #Seems to always be in the same place
 if os.path.isfile(catPath):
     print("Reading cat entries...")
     readCat(cat,catPath)
 
     #Check if there's a patched version.
-    patchedCat=os.path.join(patchDirectory,os.path.relpath(catPath,gameDirectory))
+    patchedCat=os.path.join(patchDir,os.path.relpath(catPath,dataDir))
     if os.path.isfile(patchedCat):
         print("Reading patched cat entries...")
         readCat(cat,patchedCat)
 
-if os.path.isdir(updateDirectory):
+if os.path.isdir(updateDir):
     #First, extract all DLC.
-    for dir in os.listdir(updateDirectory):
-        if not dir.startswith("Xpack"):
+    for dir in os.listdir(updateDir):
+        if dir=="Patch":
             continue
 
         print("Extracting DLC %s..." % dir)
-        dumpRoot(os.path.join(updateDirectory,dir))
+        dumpRoot(os.path.join(updateDir,dir,"Data"),patchDir,targetDirectory)
 
 #Now extract the base game.
 print("Extracting main game...")
-dumpRoot(gameDirectory)
+dumpRoot(dataDir,patchDir,targetDirectory)

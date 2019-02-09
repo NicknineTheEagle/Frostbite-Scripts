@@ -230,7 +230,7 @@ def dump(tocPath,baseTocPath,outPath):
 
             #make empty lists for every type to get rid of key errors(=> less indendation)
             for listType in ("ebx","res","chunks"):
-                if bundle.get(listType) == None:
+                if bundle.get(listType)==None:
                     bundle.set(listType,list())
                     
             #The noncas chunks already have originalSize calculated in Bundle.py (it was necessary to seek through the entries).
@@ -392,11 +392,11 @@ def readCat1(catDict,catPath):
         catDict[catEntry.sha1]=catEntry
 
 def readCat2(catDict,catPath):
-    #2015, added the number of entries in the header and a new var (always 0?) to cat entry.
+    #2015, added the number of entries in the header, a new var (always 0?) to cat entry and a new section with unknown data (usually empty).
     cat=dbo.unXor(catPath)
     cat.seek(0,2) #get eof
     cat.seek(16) #skip nyan
-    numEntries,unk=unpack("<II",cat.read(8))
+    numEntries,numEntries2=unpack("<II",cat.read(8))
     casDirectory=os.path.dirname(catPath)
 
     for i in range(numEntries):
@@ -404,7 +404,7 @@ def readCat2(catDict,catPath):
         catDict[catEntry.sha1]=catEntry
 
 def readCat3(catDict,catPath):
-    #2017, added two new sections with unknown data. They're usually empty but FIFA 18 has some data in section 2.
+    #2017, added another unknown section, increased change entry counts to 64-bit(?).
     cat=dbo.unXor(catPath)
     cat.seek(0,2) #get eof
     cat.seek(16) #skip nyan
@@ -415,7 +415,7 @@ def readCat3(catDict,catPath):
         catEntry=CatEntry(cat,casDirectory,3)
         catDict[catEntry.sha1]=catEntry
 
-def dumpRoot(dataDir,patchDir):
+def dumpRoot(dataDir,patchDir,outPath):
     for dir0, dirs, ff in os.walk(dataDir):
         for fname in ff:
             if fname[-4:]==".toc":
@@ -426,9 +426,9 @@ def dumpRoot(dataDir,patchDir):
                 #Check if there's a patched version and extract it first.
                 patchedName=os.path.join(patchDir,localPath)
                 if os.path.isfile(patchedName):
-                    dump(patchedName,fname,targetDirectory)
+                    dump(patchedName,fname,outPath)
 
-                dump(fname,None,targetDirectory)
+                dump(fname,None,outPath)
 
 
 #make the paths absolute and normalize the slashes
@@ -452,10 +452,6 @@ if not tocLayout.getSubEntry("installManifest"):
     updateDir=os.path.join(gameDirectory,"Update")
     patchDir=os.path.join(updateDir,"Patch","Data")
 
-    patchedLayout=os.path.join(patchDir,os.path.join(patchDir,"layout.toc"))
-    if os.path.isfile(patchedLayout):
-        tocLayout=dbo.readToc(patchedLayout)
-
     readCat=readCat1
 
     catPath=os.path.join(dataDir,"cas.cat") #Seems to always be in the same place
@@ -463,7 +459,7 @@ if not tocLayout.getSubEntry("installManifest"):
         print("Reading cat entries...")
         readCat(cat,catPath)
 
-        # Check if there's a patched version.
+        #Check if there's a patched version.
         patchedCat=os.path.join(patchDir,os.path.relpath(catPath,dataDir))
         if os.path.isfile(patchedCat):
             print("Reading patched cat entries...")
@@ -476,17 +472,18 @@ if not tocLayout.getSubEntry("installManifest"):
                 continue
 
             print("Extracting DLC %s..." % dir)
-            dumpRoot(os.path.join(updateDir,dir,"Data"),patchDir)
+            dumpRoot(os.path.join(updateDir,dir,"Data"),patchDir,targetDirectory)
 
     #Now extract the base game.
     print("Extracting main game...")
-    dumpRoot(dataDir,patchDir)
+    dumpRoot(dataDir,patchDir,targetDirectory)
 else:
     #New version with multiple cats split into install groups, seen in 2015 and later games.
     #Appears to always use cas.cat and never use delta bundles, patch just replaces bundles fully.
     dataDir=os.path.join(gameDirectory,"Data")
     patchDir=os.path.join(gameDirectory,"Patch")
 
+    #Load patched layout.toc so we know about DLCs.
     patchedLayout=os.path.join(patchDir,os.path.join(patchDir,"layout.toc"))
     if os.path.isfile(patchedLayout):
         tocLayout=dbo.readToc(patchedLayout)
@@ -512,13 +509,13 @@ else:
         print("Reading %s/cas.cat..." % catName)        
         readCat(cat,catPath)
 
-        # Check if there's a patched version.
+        #Check if there's a patched version.
         patchedCat=os.path.join(patchDir,os.path.relpath(catPath,dataDir))
         if os.path.isfile(patchedCat):
             print("Reading patched %s/cas.cat..." % catName)
             readCat(cat,patchedCat)
 
     print("Extracting game...")
-    dumpRoot(dataDir,patchDir)
+    dumpRoot(dataDir,patchDir,targetDirectory)
 
 libzstd.ZSTD_freeDDict(zstd_dict)

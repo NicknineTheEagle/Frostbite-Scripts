@@ -5,7 +5,7 @@ import ebx
 #Choose where you dumped the files and where to put the resulting TXT files.
 dumpDirectory   = r"E:\GameRips\NFS\NFSTR\pc\dump"
 targetDirectory = r"E:\GameRips\NFS\NFSTR\pc\ebx"
-inputFolder     = r"_c4\sound\music"
+inputFolder     = r"_c4\sound\music" #relative to ebxFolder
 
 #These paths are relative to the dumpDirectory. They don't need to be changed.
 ebxFolder    = r"bundles\ebx"
