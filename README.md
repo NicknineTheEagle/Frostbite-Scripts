@@ -7,6 +7,7 @@ There is one folder for each Frostbite version:
  * frostbite3
    * Frostbite Engine 3 (2013-present) - Battlefield 4, Need for Speed: Rivals, ...
    * Newest games from 2018 (Battlefield V, FIFA 19) are not supported yet.
+   * Mass Effect: Andromeda is not supported yet since its TOC files are encrypted.
    * IMPORTANT: In FIFA 18, some files are compressed with Oodle. I can't distribute the library required to decompress it here since it's proprietary and the one from FIFA 18 itself is 64-bit so it can't be used with Python 32-bit. You'll need to get oo2core_6_win32.dll from a game using Oodle and put it into frostbite3 directory. Your best bet is to get it from Warframe, it's a F2P game: https://store.steampowered.com/app/230410
  
 In each directory, you'll find the following scripts:
