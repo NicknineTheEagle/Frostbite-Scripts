@@ -3,13 +3,13 @@
 #The script does not overwrite existing files (mainly because 10 sbtocs pointing at the same asset in the cascat would make the extraction time unbearable).
 import dbo
 import noncas
+import ebx
 import os
 from struct import pack,unpack
 import io
 import sys
 import zlib
 import subprocess
-import ebx
 
 #Adjust paths here.
 #do yourself a favor and don't dump into the Users folder (or it might complain about permission)
@@ -117,26 +117,10 @@ def zlibb(f, size):
     outStream.close()
     return data
 
-
 def zlibIdata(bytestring):
     return zlibb(io.BytesIO(bytestring),len(bytestring))
 
-def open2(path,mode):
-    #create folders if necessary and return the file handle
 
-    #first of all, create one folder level manully because makedirs might fail
-    pathParts=path.split("\\")
-    manualPart="\\".join(pathParts[:2])
-    if not os.path.isdir(manualPart): os.makedirs(manualPart)
-
-    #now handle the rest, including extra long path names
-    folderPath=lp(os.path.dirname(path))
-    if not os.path.isdir(folderPath): os.makedirs(folderPath)
-    return open(lp(path),mode)
-
-def lp(path): #long pathnames
-    if path[:4]=='\\\\?\\' or path=="" or len(path)<=247: return os.path.normpath(path)
-    return unicode('\\\\?\\' + os.path.normpath(path))
 
 class Delta:
     def __init__(self,sb):
@@ -173,7 +157,7 @@ def dump(tocPath,baseTocPath,outPath):
 
             for entry in bundle.get("dbx"): #name sha1 size originalSize
                 if entry.get("idata"): #dbx appear only idata if at all, they are probably deprecated and were not meant to be shipped at all.
-                    out=open2(os.path.join(dbxPath,entry.get("name")+".dbx"),"wb")
+                    out=open(os.path.join(dbxPath,entry.get("name")+".dbx"),"wb")
                     if entry.get("size")==entry.get("originalSize"):
                         out.write(entry.get("idata"))
                     else:          
@@ -259,13 +243,18 @@ def dump(tocPath,baseTocPath,outPath):
 
 
 
+def prepareDir(targetPath):
+    if os.path.exists(targetPath): return True
+    dirName=os.path.dirname(targetPath)
+    if not os.path.exists(dirName): os.makedirs(dirName) #make the directory for the dll
+    #print(targetPath)
+
 def formatGuid(data,bigEndian):
     guid=ebx.Guid(data,bigEndian)
     return guid.format()
 
 def casHandlePayload(entry,outPath):
-    if os.path.exists(lp(outPath)): return #don't overwrite existing files to speed up things
-    #print(lp(outPath))
+    if prepareDir(outPath): return
 
     if entry.get("originalSize"):
         compressed=False if entry.get("size")==entry.get("originalSize") else True #I cannot tell for certain if this is correct. I do not have any negative results though.
@@ -273,12 +262,12 @@ def casHandlePayload(entry,outPath):
         compressed=True
 
     if entry.get("idata"):
-        out=open2(outPath,"wb")
+        out=open(os.path.normpath(outPath),"wb")
         if compressed: out.write(zlibIdata(entry.get("idata")))
         else:          out.write(entry.get("idata"))
     else:        
         catEntry=cat[entry.get("sha1")]
-        out=open2(outPath,"wb")
+        out=open(os.path.normpath(outPath),"wb")
         cas=open(catEntry.path,"rb")
         cas.seek(catEntry.offset)
         if compressed: out.write(zlibb(cas,catEntry.size))
@@ -287,11 +276,10 @@ def casHandlePayload(entry,outPath):
     out.close()
 
 def noncasHandlePayload(sb,offset,size,originalSize,outPath):
-    if os.path.exists(lp(outPath)): return
-    #print(lp(outPath))
+    if prepareDir(outPath): return
 
     sb.seek(offset)
-    out=open2(outPath,"wb")
+    out=open(os.path.normpath(outPath),"wb")
     if originalSize:
         if size==originalSize:
             out.write(sb.read(size))

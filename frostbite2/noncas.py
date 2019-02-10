@@ -27,7 +27,7 @@ class Bundle:
         metaStart=f.tell()
         metaEnd=metaStart+metaSize
         self.header=Header(unpack(">8I",f.read(32)),metaStart)
-        if self.header.magic!=0x970d1c13: raise Exception("Wrong noncas bundle header magic. The script cannot handle patched sbtoc")
+        if self.header.magic!=0x970d1c13: raise Exception("Wrong noncas bundle header magic.")
         self.sha1List=[f.read(20) for i in range(self.header.numEntry)] #one sha1 for each ebx+res+chunk
         self.ebxEntries=[BundleEntry(unpack(">3I",f.read(12))) for i in range(self.header.numEbx)]
         self.resEntries=[BundleEntry(unpack(">3I",f.read(12))) for i in range(self.header.numRes)]

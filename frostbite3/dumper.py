@@ -4,12 +4,12 @@
 #Compression libs used: liblz4 (https://github.com/lz4/lz4), libzstd (https://github.com/facebook/zstd), oodle (http://www.radgametools.com/oodle.htm)
 import dbo
 import noncas
+import ebx
 import os
 from struct import pack,unpack
 import io
 import ctypes
 import zlib
-import ebx
 
 #Adjust paths here.
 #do yourself a favor and don't dump into the Users folder (or it might complain about permission)
@@ -310,6 +310,7 @@ def dump(tocPath,baseTocPath,outPath):
     sb.close()
 
 
+
 def prepareDir(targetPath):
     if os.path.exists(targetPath): return True
     dirName=os.path.dirname(targetPath)
@@ -319,8 +320,6 @@ def prepareDir(targetPath):
 def formatGuid(data,bigEndian):
     guid=ebx.Guid(data,bigEndian)
     return guid.format()
-
-
 
 #for each bundle, the dump script selects one of these six functions
 def casPayload(bundleEntry, targetPath):
@@ -353,7 +352,6 @@ def casChunkPayload(entry,targetPath):
     except:
         return
 
-
 def noncasPayload(entry, targetPath, sourcePath):
     if prepareDir(targetPath): return
     decompressPayload(sourcePath,entry.offset,entry.size,entry.originalSize,targetPath)
@@ -368,6 +366,8 @@ def noncasPatchedPayload(entry, targetPath, sourcePath):
 def noncasChunkPayload(entry, targetPath, sourcePath):
     if prepareDir(targetPath): return
     decompressPayload(sourcePath,entry.get("offset"),entry.get("size"),None,targetPath)
+
+
 
 #Take a dict and fill it using a cat file: sha1 vs (offset, size, cas path)
 #Cat files are always little endian.
