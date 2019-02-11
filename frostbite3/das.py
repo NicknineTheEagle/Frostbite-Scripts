@@ -41,7 +41,8 @@ def readDal(dalPath):
         dataOffset=numEntries*24
         for j in range(numEntries):
             sha1=f2.read(20)
-            cas.catDict[sha1]=DalEntry(f2,dataOffset,dasPath)
+            dalEntry=DalEntry(f2,dataOffset,dasPath)
+            cas.catDict[sha1]=dalEntry
             dataOffset+=dalEntry.size
 
         f2.close()
