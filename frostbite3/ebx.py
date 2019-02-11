@@ -586,6 +586,16 @@ class Dbx:
         print("Chunk does not exist: "+ChunkId)
         return None
 
+    def extractChunk(self,chnk,ext):
+        currentChunkName=self.findChunk(chnk)      
+        if not currentChunkName:
+            return
+
+        target=os.path.normpath(os.path.join(self.outputFolder,self.trueFilename)+ext)
+        targetFolder=os.path.dirname(target)
+        if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
+        shutil.copyfile(currentChunkName,target)
+
     def extractSPS(self,f,offset,target):
         f.seek(offset)
         if f.read(1)!=b"\x48":
@@ -635,16 +645,6 @@ class Dbx:
                     break
 
         return soundOffsets
-
-    def extractChunk(self,chnk,ext):
-        currentChunkName=self.findChunk(chnk)      
-        if not currentChunkName:
-            return
-
-        target=os.path.join(self.outputFolder,self.trueFilename)+ext
-        targetFolder=os.path.dirname(target)
-        if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
-        shutil.copyfile(currentChunkName,target)
         
     def extractSoundWaveAsset(self):
         print(self.trueFilename)

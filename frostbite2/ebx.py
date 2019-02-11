@@ -508,6 +508,7 @@ class Dbx:
 
         if self.prim.desc.name=="SoundWaveAsset": self.extractSoundWaveAsset()
         elif self.prim.desc.name=="MovieTextureAsset": self.extractMovieAsset()
+        elif self.prim.desc.name=="NfsTmxAsset": self.extractTmxAsset()
 
     def findRes(self):
         path=os.path.join(self.resFolder,os.path.normpath(self.trueFilename.lower())+".res")
@@ -515,6 +516,12 @@ class Dbx:
             print("Res does not exist: "+self.trueFilename)
             return None
         return path
+
+    def extractRes(self,ext):
+        target=os.path.normpath(os.path.join(self.outputFolder,self.trueFilename)+ext)
+        targetFolder=os.path.dirname(target)
+        if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
+        shutil.copyfile(currentChunkName,target)
 
     def findChunk(self,chnk):
         if chnk.isNull():
@@ -530,6 +537,18 @@ class Dbx:
         
         print("Chunk does not exist: "+ChunkId)
         return None
+
+    def extractChunk(self,chnk,ext,idx=-1,totalChunks=0):
+        currentChunkName=self.findChunk(chnk)      
+        if not currentChunkName:
+            return
+
+        target=os.path.normpath(os.path.join(self.outputFolder,self.trueFilename))
+        if totalChunks>1: target+=" "+str(idx)
+        target+=ext
+        targetFolder=os.path.dirname(target)
+        if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
+        shutil.copyfile(currentChunkName,target)
 
     def extractSPS(self,f,offset,target):
         f.seek(offset)
@@ -636,19 +655,21 @@ class Dbx:
         for key in ChunkHandles:
             ChunkHandles[key].close()
 
+    def extractTmxAsset(self):
+        print(self.trueFilename)
+
+        Chunks=self.prim.get("$::SoundDataAsset/Chunks::array").fields
+        for i in range(len(Chunks)):
+            field=Chunks[i]
+            ChunkId=field.value.get("ChunkId").value      
+            ChunkSize=field.value.get("ChunkSize").value                    
+            self.extractChunk(ChunkId,".tmx",i,len(Chunks))
+
     def extractMovieAsset(self):
         print(self.trueFilename)
 
         chnk=self.prim.get("ChunkGuid").value
         if chnk.isNull():
-            filename=self.findRes()
-            if not filename:
-                return
+            self.extractRes(".vp6")
         else:
-            filename=self.findChunk(chnk)      
-            if not filename:
-                return
-
-        target=os.path.join(self.outputFolder,self.trueFilename)+".vp6"
-        makeDirs(target)
-        shutil.copyfile(filename,target)
+            self.extractChunk(chnk,".vp6")
