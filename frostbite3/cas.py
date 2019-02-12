@@ -31,7 +31,7 @@ def readCat2(catPath):
     #2015, added the number of entries in the header, a new var (always 0?) to cat entry and a new section with unknown data (usually empty).
     cat=dbo.unXor(catPath)
     cat.seek(16) #skip nyan
-    numEntries,numEntries2=unpack("<II",cat.read(8))
+    numEntries, unk = unpack("<II",cat.read(8))
     casDirectory=os.path.dirname(catPath)
 
     for i in range(numEntries):
@@ -39,10 +39,10 @@ def readCat2(catPath):
         catDict[sha1]=CatEntry(cat,casDirectory,2)
 
 def readCat3(catPath):
-    #2017, added another unknown section, changed entry count vars to 64-bit(?).
+    #2017, added more unknown sections.
     cat=dbo.unXor(catPath)
     cat.seek(16) #skip nyan
-    numEntries, numEntries2, numEntries3 = unpack("<QQQ",cat.read(24))
+    numEntries, unk, unk2, unk3 = unpack("<IIQQ",cat.read(24))
     casDirectory=os.path.dirname(catPath)
 
     for i in range(numEntries):
