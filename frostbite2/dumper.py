@@ -378,3 +378,12 @@ if os.path.isdir(updateDir):
 #Now extract the base game.
 print("Extracting main game...")
 dumpRoot(dataDir,patchDir,targetDirectory)
+
+#MOH:WF hack: extract driving levels assets.
+if os.path.isdir(os.path.join(gameDirectory,"game","Speed")):
+    print("Extracting MOH:WF driving assets...")
+    gameDirectory=os.path.join(gameDirectory,"game")
+    dataDir=os.path.join(gameDirectory,"Speed")
+    updateDir=os.path.join(gameDirectory,"Update")
+    patchDir=os.path.join(updateDir,"Patch","Speed")
+    dumpRoot(dataDir,patchDir,os.path.join(targetDirectory,"speed"))
