@@ -144,7 +144,7 @@ def dump(tocPath,baseTocPath,outPath):
         #deal with cas bundles => ebx, dbx, res, chunks. 
         for tocEntry in toc.get("bundles"): #id offset size, size is redundant
             sb.seek(tocEntry.get("offset"))
-            bundle=dbo.Entry(sb)
+            bundle=dbo.DbObject(sb)
 
             #make empty lists for every type to get rid of key errors(=> less indendation)
             for listType in ("ebx","dbx","res","chunks"):
@@ -173,7 +173,7 @@ def dump(tocPath,baseTocPath,outPath):
                 casHandlePayload(entry,path)
 
         #deal with cas chunks defined in the toc.
-        for entry in toc.get("chunks"): # id sha1
+        for entry in toc.get("chunks"): #id sha1
             path=os.path.join(chunkPathToc,formatGuid(entry.get("id"),False)+".chunk")
             casHandlePayload(entry,path)
 
