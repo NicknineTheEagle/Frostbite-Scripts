@@ -157,7 +157,9 @@ def dump(tocPath,baseTocPath,outPath):
 
             for entry in bundle.get("dbx"): #name sha1 size originalSize
                 if entry.get("idata"): #dbx appear only idata if at all, they are probably deprecated and were not meant to be shipped at all.
-                    out=open(os.path.join(dbxPath,entry.get("name")+".dbx"),"wb")
+                    path=os.path.join(dbxPath,entry.get("name")+".dbx")
+                    prepareDir(path)
+                    out=open(path,"wb")
                     if entry.get("size")==entry.get("originalSize"):
                         out.write(entry.get("idata"))
                     else:          
