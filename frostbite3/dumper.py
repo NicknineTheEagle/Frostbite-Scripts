@@ -262,8 +262,10 @@ else:
 
         #Allow skipping optional install chunks (localizations and optional DLCs).
         catPath=os.path.join(dataDir,os.path.normpath(catName),"cas.cat")
-        if not entry.get("Language") and not entry.get("optionalDLC"):
-            if not os.path.isfile(catPath):
+        if not os.path.isfile(catPath):
+            if entry.get("language") or entry.get("optionalDLC"):
+                continue
+            else:
                 raise Exception("Cat does not exist: %s" % catPath)
 
         print("Reading %s/cas.cat..." % catName)
