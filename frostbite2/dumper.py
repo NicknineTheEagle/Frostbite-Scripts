@@ -47,6 +47,19 @@ resTypes={
     0xC6DBEE07:".mohwspecific"
 }
 
+def makeLongDirs(path):
+    folderPath=lp(os.path.dirname(path))
+    if not os.path.isdir(folderPath): os.makedirs(folderPath)
+
+def open2(path,mode):
+    #create folders if necessary and return the file handle
+    if mode.find("w")!=-1: makeLongDirs(path)
+    return open(lp(path),mode)
+
+def lp(path): #long pathnames
+    if path[:4]=='\\\\?\\' or path=="" or len(path)<=247: return path
+    return '\\\\?\\' + os.path.normpath(path)
+
 #zlib (one more try):
 #Files are split into pieces which are then zlibbed individually (prefixed with compressed and uncompressed size)
 #and finally glued together again. Non-zlib files on the other hand have no prefix about size, they are just the payload.
@@ -158,8 +171,7 @@ def dump(tocPath,baseTocPath,outPath):
             for entry in bundle.get("dbx"): #name sha1 size originalSize
                 if entry.get("idata"): #dbx appear only idata if at all, they are probably deprecated and were not meant to be shipped at all.
                     path=os.path.join(dbxPath,entry.get("name")+".dbx")
-                    prepareDir(path)
-                    out=open(path,"wb")
+                    out=open2(path,"wb")
                     if entry.get("size")==entry.get("originalSize"):
                         out.write(entry.get("idata"))
                     else:          
@@ -245,18 +257,12 @@ def dump(tocPath,baseTocPath,outPath):
 
 
 
-def prepareDir(targetPath):
-    if os.path.exists(targetPath): return True
-    dirName=os.path.dirname(targetPath)
-    if not os.path.exists(dirName): os.makedirs(dirName) #make the directory for the dll
-    #print(targetPath)
-
 def formatGuid(data,bigEndian):
     guid=ebx.Guid(data,bigEndian)
     return guid.format()
 
 def casHandlePayload(entry,outPath):
-    if prepareDir(outPath): return
+    if os.path.isfile(lp(outPath)): return
 
     if entry.get("originalSize"):
         compressed=False if entry.get("size")==entry.get("originalSize") else True #I cannot tell for certain if this is correct. I do not have any negative results though.
@@ -264,12 +270,12 @@ def casHandlePayload(entry,outPath):
         compressed=True
 
     if entry.get("idata"):
-        out=open(os.path.normpath(outPath),"wb")
+        out=open2(outPath,"wb")
         if compressed: out.write(zlibIdata(entry.get("idata")))
         else:          out.write(entry.get("idata"))
     else:        
         catEntry=cat[entry.get("sha1")]
-        out=open(os.path.normpath(outPath),"wb")
+        out=open2(outPath,"wb")
         cas=open(catEntry.path,"rb")
         cas.seek(catEntry.offset)
         if compressed: out.write(zlibb(cas,catEntry.size))
@@ -278,10 +284,10 @@ def casHandlePayload(entry,outPath):
     out.close()
 
 def noncasHandlePayload(sb,offset,size,originalSize,outPath):
-    if prepareDir(outPath): return
+    if os.path.isfile(lp(outPath)): return
 
     sb.seek(offset)
-    out=open(os.path.normpath(outPath),"wb")
+    out=open2(outPath,"wb")
     if originalSize:
         if size==originalSize:
             out.write(sb.read(size))
@@ -338,9 +344,9 @@ def dumpRoot(dataDir,patchDir,outPath):
                 print(localPath)
 
                 #Check if there's a patched version and extract it first.
-                patchedName=os.path.join(patchDir,localPath)
-                if os.path.isfile(patchedName):
-                    dump(patchedName,fname,outPath)
+                #patchedName=os.path.join(patchDir,localPath)
+                #if os.path.isfile(patchedName):
+                #    dump(patchedName,fname,outPath)
 
                 dump(fname,None,outPath)
 

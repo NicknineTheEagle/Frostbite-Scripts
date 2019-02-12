@@ -10,6 +10,23 @@ libzstd = ctypes.cdll.LoadLibrary("libzstd")
 try: oodle = ctypes.windll.LoadLibrary("oo2core_6_win32")
 except: oodle = None
 
+
+
+def makeLongDirs(path):
+    folderPath=lp(os.path.dirname(path))
+    if not os.path.isdir(folderPath): os.makedirs(folderPath)
+
+def open2(path,mode):
+    #create folders if necessary and return the file handle
+    if mode.find("w")!=-1: makeLongDirs(path)
+    return open(lp(path),mode)
+
+def lp(path): #long pathnames
+    if path[:4]=='\\\\?\\' or path=="" or len(path)<=247: return path
+    return '\\\\?\\' + os.path.normpath(path)
+
+
+
 def readBlockHeader(f):
     #Block header is a bitfield:
     #8 bits: custom dict flag
@@ -67,7 +84,7 @@ def decompressBlock(f,f2):
 def decompressPayload(srcPath,offset,size,originalSize,outPath):
     f=open(srcPath,"rb")
     f.seek(offset)
-    f2=open(os.path.normpath(outPath),"wb")
+    f2=open2(outPath,"wb")
 
     #Payloads are split into blocks and each block may or may not be compressed.
     #We need to decompress and glue the blocks together to get the real file.
@@ -86,7 +103,7 @@ def decompressPatchedPayload(basePath,baseOffset,deltaPath,deltaOffset,deltaSize
     delta=open(deltaPath,"rb")
     base.seek(baseOffset)
     delta.seek(deltaOffset)
-    f2=open(os.path.normpath(outPath),"wb")
+    f2=open2(outPath,"wb")
 
     instructionType=midInstructionType
     instructionSize=midInstructionSize
@@ -150,26 +167,19 @@ def decompressPatchedPayload(basePath,baseOffset,deltaPath,deltaOffset,deltaSize
     delta.close()
     f2.close()
 
-
-
-def prepareDir(targetPath):
-    if os.path.exists(targetPath): return True
-    dirName=os.path.dirname(targetPath)
-    if not os.path.exists(dirName): os.makedirs(dirName)
-    #print(targetPath)
-
 #for each bundle, the dump script selects one of these six functions
 def casPayload(bundleEntry, targetPath):
+    if os.path.isfile(lp(targetPath)): return
+
     #Some files may be from localizations user doesn't have installed.
     try:
-        if prepareDir(targetPath): return
         catEntry=cas.catDict[bundleEntry.get("sha1")]
         decompressPayload(catEntry.path,catEntry.offset,catEntry.size,bundleEntry.get("originalSize"),targetPath)
     except:
         return
 
 def casPatchedPayload(bundleEntry, targetPath):
-    if prepareDir(targetPath): return
+    if os.path.isfile(lp(targetPath)): return
 
     if bundleEntry.get("casPatchType")==2:
         catDelta=cas.catDict[bundleEntry.get("deltaSha1")]
@@ -181,27 +191,28 @@ def casPatchedPayload(bundleEntry, targetPath):
         casPayload(bundleEntry, targetPath) #if casPatchType is not 2, use the unpatched function.
 
 def casChunkPayload(entry,targetPath):
+    if os.path.isfile(lp(targetPath)): return
+
     #Some files may be from localizations user doesn't have installed.
     try:
-        if prepareDir(targetPath): return
         catEntry=cas.catDict[entry.get("sha1")]
         decompressPayload(catEntry.path,catEntry.offset,catEntry.size,None,targetPath)
     except:
         return
 
 def noncasPayload(entry, targetPath, sourcePath):
-    if prepareDir(targetPath): return
+    if os.path.isfile(lp(targetPath)): return
     decompressPayload(sourcePath,entry.offset,entry.size,entry.originalSize,targetPath)
 
 def noncasPatchedPayload(entry, targetPath, sourcePath):
-    if prepareDir(targetPath): return
+    if os.path.isfile(lp(targetPath)): return
     decompressPatchedPayload(sourcePath[0], entry.baseOffset,#entry.baseSize,
                             sourcePath[1], entry.deltaOffset, entry.deltaSize,
                             entry.originalSize, targetPath,
                             entry.midInstructionType, entry.midInstructionSize)
 
 def noncasChunkPayload(entry, targetPath, sourcePath):
-    if prepareDir(targetPath): return
+    if os.path.isfile(lp(targetPath)): return
     decompressPayload(sourcePath,entry.get("offset"),entry.get("size"),None,targetPath)
 
 

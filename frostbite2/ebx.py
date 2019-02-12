@@ -18,7 +18,7 @@ def createGuidTableFast(inputFolder,ebxFolder):
     for dir0, dirs, ff in os.walk(inputFolder):
         for fname in ff:
             path=os.path.join(dir0,fname)
-            f=open(path,"rb")
+            f=open2(path,"rb")
             magic=f.read(4)
             if magic==b"\xCE\xD1\xB2\x0F":   bigEndian=False
             elif magic==b"\x0F\xB2\xD1\xCE": bigEndian=True
@@ -39,13 +39,22 @@ def createGuidTable(inputFolder):
 
     for dir0, dirs, ff in os.walk(inputFolder):
         for fname in ff:
-            f=open(os.path.join(dir0,fname),"rb")
+            f=open2(os.path.join(dir0,fname),"rb")
             dbx=Dbx(f,fname)
             guidTable[dbx.fileGUID]=dbx.trueFilename
 
-def makeDirs(path):
-    folderPath=os.path.dirname(path)
+def makeLongDirs(path):
+    folderPath=lp(os.path.dirname(path))
     if not os.path.isdir(folderPath): os.makedirs(folderPath)
+
+def open2(path,mode):
+    #create folders if necessary and return the file handle
+    if mode.find("w")!=-1: makeLongDirs(path)
+    return open(lp(path),mode)
+
+def lp(path): #long pathnames
+    if path[:4]=='\\\\?\\' or path=="" or len(path)<=247: return path
+    return '\\\\?\\' + os.path.normpath(path)
 
 def hasher(keyword): #32bit FNV-1 hash with FNV_offset_basis = 5381 and FNV_prime = 33
     hash = 5381
@@ -218,7 +227,7 @@ class FieldType:
         pass       
 
 def openEbx(fname):
-    f=open(fname,"rb")
+    f=open2(fname,"rb")
     if f.read(4) not in (b"\xCE\xD1\xB2\x0F",b"\x0F\xB2\xD1\xCE"):
         f.close()
         raise Exception("Invalid EBX file: "+fname)
@@ -437,8 +446,7 @@ class Dbx:
     def dump(self,outputFolder):
         print(self.trueFilename)
         outName=os.path.join(outputFolder,self.trueFilename+".txt")
-        makeDirs(outName)
-        f2=open(outName,"w")
+        f2=open2(outName,"w")
         IGNOREINSTANCES=[]
 
         for (guid,instance) in self.instances:
@@ -512,16 +520,16 @@ class Dbx:
 
     def findRes(self):
         path=os.path.join(self.resFolder,os.path.normpath(self.trueFilename.lower())+".res")
-        if not os.path.isfile(path):
+        if not os.path.isfile(lp(path)):
             print("Res does not exist: "+self.trueFilename)
             return None
         return path
 
     def extractRes(self,ext):
+        resName=findRes(self)
         target=os.path.normpath(os.path.join(self.outputFolder,self.trueFilename)+ext)
-        targetFolder=os.path.dirname(target)
-        if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
-        shutil.copyfile(currentChunkName,target)
+        makeLongDirs(target)
+        shutil.copyfile(lp(resName),lp(target))
 
     def findChunk(self,chnk):
         if chnk.isNull():
@@ -546,9 +554,8 @@ class Dbx:
         target=os.path.normpath(os.path.join(self.outputFolder,self.trueFilename))
         if totalChunks>1: target+=" "+str(idx)
         target+=ext
-        targetFolder=os.path.dirname(target)
-        if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
-        shutil.copyfile(currentChunkName,target)
+        makeLongDirs(target)
+        shutil.copyfile(currentChunkName,lp(target))
 
     def extractSPS(self,f,offset,target):
         f.seek(offset)
@@ -556,9 +563,7 @@ class Dbx:
             raise Exception("Wrong SPS header.")
 
         # Create the target file.
-        targetFolder=os.path.dirname(target)
-        if not os.path.isdir(targetFolder): os.makedirs(targetFolder)
-        f2=open(target,"wb")
+        f2=open2(target,"wb")
 
         # 0x48=header, 0x44=normal block, 0x45=last block (empty)
         while True:
@@ -637,7 +642,7 @@ class Dbx:
                 if not currentChunkName:
                     continue
 
-                f=open(currentChunkName,"rb")
+                f=open2(currentChunkName,"rb")
                 ChunkHandles[Variation.ChunkId]=f
                 #print("Chunk found: "+currentChunkName)
         

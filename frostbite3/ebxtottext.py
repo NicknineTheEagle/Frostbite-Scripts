@@ -39,7 +39,7 @@ else:
 
 for dir0, dirs, ff in os.walk(inputFolder):
     for fname in ff:
-        f=open(os.path.join(dir0,fname),"rb")
+        f=ebx.open2(os.path.join(dir0,fname),"rb")
         dbx=ebx.Dbx(f,fname,ebxFolder)
         f.close()
         dbx.dump(targetDirectory)
