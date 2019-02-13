@@ -657,16 +657,21 @@ class Dbx:
         histogram=dict() #count the number of times each chunk is used by a variation to obtain the right index
 
         if self.version==1:
-            chunksPath="$::SoundDataAsset/Chunks::array"
-            variationsPath="RuntimeVariations::array"
-            segmentsPath="Segments::array"
+            try:
+                chunksFields=self.prim.get("$::SoundDataAsset/Chunks::array").fields
+                variationsFields=self.prim.get("RuntimeVariations::array").fields
+                segmentsFields=self.prim.get("Segments::array").fields
+            except:
+                chunksFields=self.prim.get("$::SoundWaveAssetBase/$::SoundDataAsset/Chunks::array").fields
+                variationsFields=self.prim.get("RuntimeVariations::array").fields
+                segmentsFields=self.prim.get("Segments::array").fields
         elif self.version==2:
-            chunksPath="$::SoundWaveAssetBase/$::SoundDataAsset/Chunks::SoundDataChunk-Array"
-            variationsPath="RuntimeVariations::SoundWaveRuntimeVariation-Array"
-            segmentsPath="Segments::SoundWaveVariationSegment-Array"
+            chunksFields=self.prim.get("$::SoundWaveAssetBase/$::SoundDataAsset/Chunks::SoundDataChunk-Array").fields
+            variationsFields=self.prim.get("RuntimeVariations::SoundWaveRuntimeVariation-Array").fields
+            segmentsFields=self.prim.get("Segments::SoundWaveVariationSegment-Array").fields
 
         Chunks=[]
-        for i in self.prim.get(chunksPath).fields:
+        for i in chunksFields:
             chnk=Stub()
             Chunks.append(chnk)
             chnk.ChunkId=i.value.get("ChunkId").value            
@@ -674,14 +679,14 @@ class Dbx:
 
         Variations=[]
         Segments=[]
-        for seg in self.prim.get(segmentsPath).fields:
+        for seg in segmentsFields:
             Segment=Stub()
             Segments.append(Segment)
-            Segment.SamplesOffset = seg.value.get("SamplesOffset").value
-            Segment.SeekTableOffset = seg.value.get("SeekTableOffset").value
-            Segment.SegmentLength = seg.value.get("SegmentLength").value
+            Segment.SamplesOffset=seg.value.get("SamplesOffset").value
+            Segment.SeekTableOffset=seg.value.get("SeekTableOffset").value
+            Segment.SegmentLength=seg.value.get("SegmentLength").value
         
-        for var in self.prim.get(variationsPath).fields:
+        for var in variationsFields:
             Variation=Stub()
             Variations.append(Variation)
             Variation.ChunkIndex=var.value.get("ChunkIndex").value
