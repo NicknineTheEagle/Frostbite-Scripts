@@ -184,8 +184,6 @@ def dumpRoot(dataDir,patchDir,outPath):
 
 def findCats(dataDir,patchDir,readCat):
     #Read all cats in the specified directory.
-    cas.catDict.clear()
-
     for dir0, dirs, ff in os.walk(dataDir):
         for fname in ff:
             if fname=="cas.cat":
