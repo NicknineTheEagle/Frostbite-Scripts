@@ -182,7 +182,23 @@ def dumpRoot(dataDir,patchDir,outPath):
 
                 dump(fname,None,outPath)
 
+def findCats(dataDir,patchDir,readCat):
+    #Read all cats in the specified directory.
+    cas.catDict.clear()
 
+    for dir0, dirs, ff in os.walk(dataDir):
+        for fname in ff:
+            if fname=="cas.cat":
+                fname=os.path.join(dir0,fname)
+                localPath=os.path.relpath(fname,dataDir)
+                print("Reading %s..." % localPath)
+                readCat(fname)
+
+                #Check if there's a patched version.
+                patchedName=os.path.join(patchDir,localPath)
+                if os.path.isfile(patchedName):
+                    print("Reading patched %s..." % os.path.relpath(patchedName,patchDir))
+                    readCat(patchedName)
 
 #make the paths absolute and normalize the slashes
 gameDirectory=os.path.normpath(gameDirectory)
@@ -241,12 +257,8 @@ else:
     #New version with multiple cats split into install groups, seen in 2015 and later games.
     #Appears to always use cas.cat and never use delta bundles, patch just replaces bundles fully.
     dataDir=os.path.join(gameDirectory,"Data")
+    updateDir=os.path.join(gameDirectory,"Update")
     patchDir=os.path.join(gameDirectory,"Patch")
-
-    #Load patched layout.toc so we know about DLCs.
-    patchedLayout=os.path.join(patchDir,os.path.join(patchDir,"layout.toc"))
-    if os.path.isfile(patchedLayout):
-        tocLayout=dbo.readToc(patchedLayout)
 
     #Detect cat version.
     if tocLayout.getSubEntry("installManifest").get("maxTotalSize"):
@@ -254,30 +266,17 @@ else:
     else:
         readCat=cas.readCat3
 
-    #Read all cat files.
-    for entry in tocLayout.getSubEntry("installManifest").get("installChunks"):
-        catName=entry.get("installBundle")
-        if not catName:
-            continue
+    if os.path.isdir(updateDir):
+        #First, extract all DLC.
+        for dir in os.listdir(updateDir):
+            print("Extracting DLC %s..." % dir)
+            dir=os.path.join(updateDir,dir,"Data")
+            findCats(dir,patchDir,readCat)
+            dumpRoot(dir,patchDir,targetDirectory)
 
-        #Allow skipping optional install chunks (localizations and optional DLCs).
-        catPath=os.path.join(dataDir,os.path.normpath(catName),"cas.cat")
-        if not os.path.isfile(catPath):
-            if entry.get("language") or entry.get("optionalDLC"):
-                continue
-            else:
-                raise Exception("Cat does not exist: %s" % catPath)
-
-        print("Reading %s/cas.cat..." % catName)
-        readCat(catPath)
-
-        #Check if there's a patched version.
-        patchedCat=os.path.join(patchDir,os.path.relpath(catPath,dataDir))
-        if os.path.isfile(patchedCat):
-            print("Reading patched %s/cas.cat..." % catName)
-            readCat(patchedCat)
-
-    print("Extracting game...")
+    #Now extract the base game.
+    print("Extracting main game...")
+    findCats(dataDir,patchDir,readCat)
     dumpRoot(dataDir,patchDir,targetDirectory)
 
 payload.zstdCleanup()
