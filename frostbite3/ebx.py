@@ -129,8 +129,8 @@ class Guid:
         return hash(self.val)
 
     def format(self):
-        return "%08x-%04x-%04x-%04x-%010x" % (self.val[0],self.val[1],self.val[2],
-                                             (self.val[3]>>48)&0xFFFF,self.val[3]&0x0000FFFFFFFFFF)
+        return "%08x-%04x-%04x-%04x-%012x" % (self.val[0],self.val[1],self.val[2],
+                                             (self.val[3]>>48)&0xFFFF,self.val[3]&0x0000FFFFFFFFFFFF)
     def isNull(self):
         return self.val==(0,0,0,0)
 class InstanceIndex: #Used for instances with no GUID

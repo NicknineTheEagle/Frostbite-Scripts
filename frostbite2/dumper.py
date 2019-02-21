@@ -182,7 +182,7 @@ def dump(tocPath,baseTocPath,outPath):
                 path=os.path.join(resPath,entry.get("name")+".res")
                 casHandlePayload(entry,path)
 
-            for entry in bundle.get("chunks"): #id sha1 size, chunkMeta::meta
+            for entry in bundle.get("chunks"): #id sha1 size chunkMeta::h32 chunkMeta::meta
                 path=os.path.join(chunkPath,formatGuid(entry.get("id"),False)+".chunk")
                 casHandlePayload(entry,path)
 

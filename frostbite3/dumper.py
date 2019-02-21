@@ -106,7 +106,7 @@ def dump(tocPath,baseTocPath,outPath):
                 path=os.path.join(resPath,entry.get("name")+".res")
                 writePayload(entry,path)
 
-            for entry in bundle.get("chunks"): #id sha1 size logicalOffset logicalSize chunkMeta::meta
+            for entry in bundle.get("chunks"): #id sha1 size logicalOffset logicalSize chunkMeta::h32 chunkMeta::meta
                 path=os.path.join(chunkPath,formatGuid(entry.get("id"),False)+".chunk")
                 writePayload(entry,path)
 
@@ -157,7 +157,7 @@ def dump(tocPath,baseTocPath,outPath):
 
         #Deal with the chunks which are defined directly in the toc.
         #These chunks do NOT know their originalSize.
-        for entry in toc.get("chunks"): # id offset size
+        for entry in toc.get("chunks"): #id offset size
             targetPath=os.path.join(chunkPathToc,formatGuid(entry.get("id"),False)+".chunk")
             payload.noncasChunkPayload(entry,targetPath,sbPath)
 
