@@ -259,7 +259,7 @@ else:
     patchDir=os.path.join(gameDirectory,"Patch")
 
     #Detect cat version.
-    if tocLayout.getSubEntry("installManifest").get("maxTotalSize"):
+    if tocLayout.getSubEntry("installManifest").get("maxTotalSize")!=None:
         readCat=cas.readCat2
     else:
         readCat=cas.readCat3
