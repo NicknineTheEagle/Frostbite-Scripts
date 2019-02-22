@@ -153,33 +153,16 @@ class Complex:
         self.desc=desc
         self.dbx=dbxhandle #lazy
     def get(self,name):
-        pathElems=name.split("/")
-        curPos=self
-        if pathElems[-1].find("::")!=-1: #grab a complex
-            for elem in pathElems:
-                try:
-                    curPos=curPos.go1(elem)
-                except Exception as e:
-                    raise Exception("Could not find complex with name: "+str(e)+"\nFull path: "+name+"\nFilename: "+self.dbx.trueFilename)
-            return curPos
-        #grab a field instead
-        for elem in pathElems[:-1]:
-            try:
-                curPos=curPos.go1(elem)
-            except Exception as e:
-                raise Exception("Could not find complex with name: "+str(e)+"\nFull path: "+name+"\nFilename: "+self.dbx.trueFilename)
-        for field in curPos.fields:
-            if field.desc.name==pathElems[-1]:
-                return field
-            
-        raise Exception("Could not find field with name: "+name+"\nFilename: "+self.dbx.trueFilename)
-
-    def go1(self,name): #go once
         for field in self.fields:
-            if field.desc.getFieldType() in (FieldType.ValueType,FieldType.Void,FieldType.Array):
-                if field.desc.name+"::"+field.value.desc.name==name:
-                    return field.value
-        raise Exception(name)
+            if field.desc.name==name:
+                return field
+
+        #Go up the inheritance chain.
+        for field in self.fields:
+            if field.desc.getFieldType()==FieldType.Void:
+                return field.value.get(name)
+
+        raise Exception("Could not find field with name: "+name+"\nFilename: "+self.dbx.trueFilename)
 
 class Field:
     def __init__(self,desc,dbx):
@@ -574,8 +557,10 @@ class Dbx:
 
         if self.prim.desc.name=="SoundWaveAsset": self.extractSoundWaveAsset()
         elif self.prim.desc.name=="NewWaveAsset": self.extractNewWaveAsset()
-        elif self.prim.desc.name=="LocalizedWaveAsset" : self.extractLocalizedWaveAsset()
+        elif self.prim.desc.name=="LocalizedWaveAsset" : self.extractNewWaveAsset() #inherited from NewWaveAsset
         elif self.prim.desc.name=="HarmonySampleBankAsset": self.extractHarmonyAsset()
+        elif self.prim.desc.name=="GinsuAsset": self.extractGenericSoundAsset(".gin")
+        elif self.prim.desc.name=="OctaneAsset": self.extractGenericSoundAsset(".gin")
         elif self.prim.desc.name=="MovieTextureAsset": self.extractMovieAsset()
         elif self.prim.desc.name=="MovieTexture2Asset": self.extractMovie2Asset()
 
@@ -594,12 +579,14 @@ class Dbx:
         print("Chunk does not exist: "+ChunkId)
         return None
 
-    def extractChunk(self,chnk,ext):
+    def extractChunk(self,chnk,ext,idx=-1,totalChunks=0):
         currentChunkName=self.findChunk(chnk)      
         if not currentChunkName:
             return
 
-        target=os.path.normpath(os.path.join(self.outputFolder,self.trueFilename)+ext)
+        target=os.path.normpath(os.path.join(self.outputFolder,self.trueFilename))
+        if totalChunks>1: target+=" "+str(idx)
+        target+=ext
         makeLongDirs(target)
         shutil.copyfile(currentChunkName,lp(target))
 
@@ -656,22 +643,8 @@ class Dbx:
 
         histogram=dict() #count the number of times each chunk is used by a variation to obtain the right index
 
-        if self.version==1:
-            try:
-                chunksFields=self.prim.get("$::SoundDataAsset/Chunks::array").fields
-                variationsFields=self.prim.get("RuntimeVariations::array").fields
-                segmentsFields=self.prim.get("Segments::array").fields
-            except:
-                chunksFields=self.prim.get("$::SoundWaveAssetBase/$::SoundDataAsset/Chunks::array").fields
-                variationsFields=self.prim.get("RuntimeVariations::array").fields
-                segmentsFields=self.prim.get("Segments::array").fields
-        elif self.version==2:
-            chunksFields=self.prim.get("$::SoundWaveAssetBase/$::SoundDataAsset/Chunks::SoundDataChunk-Array").fields
-            variationsFields=self.prim.get("RuntimeVariations::SoundWaveRuntimeVariation-Array").fields
-            segmentsFields=self.prim.get("Segments::SoundWaveVariationSegment-Array").fields
-
         Chunks=[]
-        for i in chunksFields:
+        for i in self.prim.get("Chunks").value.fields:
             chnk=Stub()
             Chunks.append(chnk)
             chnk.ChunkId=i.value.get("ChunkId").value            
@@ -679,14 +652,14 @@ class Dbx:
 
         Variations=[]
         Segments=[]
-        for seg in segmentsFields:
+        for seg in self.prim.get("Segments").value.fields:
             Segment=Stub()
             Segments.append(Segment)
             Segment.SamplesOffset=seg.value.get("SamplesOffset").value
             Segment.SeekTableOffset=seg.value.get("SeekTableOffset").value
             Segment.SegmentLength=seg.value.get("SegmentLength").value
         
-        for var in variationsFields:
+        for var in self.prim.get("RuntimeVariations").value.fields:
             Variation=Stub()
             Variations.append(Variation)
             Variation.ChunkIndex=var.value.get("ChunkIndex").value
@@ -741,7 +714,7 @@ class Dbx:
     def extractNewWaveAsset(self):
         print(self.trueFilename)
 
-        Chunks=self.prim.get("$::SoundWaveAssetBase/$::SoundDataAsset/Chunks::SoundDataChunk-Array").fields
+        Chunks=self.prim.get("Chunks").value.fields
         for i in range(len(Chunks)):
             field=Chunks[i]
             ChunkId=field.value.get("ChunkId").value      
@@ -773,45 +746,10 @@ class Dbx:
 
             f.close()
 
-    def extractLocalizedWaveAsset(self):
-        print(self.trueFilename)
-
-        Chunks=self.prim.get("$::NewWaveAsset/$::SoundWaveAssetBase/$::SoundDataAsset/Chunks::SoundDataChunk-Array").fields
-        for i in range(len(Chunks)):
-            field=Chunks[i]
-            ChunkId=field.value.get("ChunkId").value      
-            ChunkSize=field.value.get("ChunkSize").value
-            currentChunkName=self.findChunk(ChunkId)
-            if not currentChunkName:
-                return
-
-            #Some files have a seek table at the start and I don't know how to find out its size yet.
-            #There's a value that appears to be related to size at 0x08, not sure how it works.
-            if self.prim.get("$::NewWaveAsset/IsSeekable").value==True:
-                print("TODO: Chunk %s has seek table, size unknown" % ChunkId.format())
-                return
-
-            f=open(currentChunkName,"rb")
-            
-            #Each chunk can contain multiple sounds going one after another, these are presumably variations.
-            #Collect offsets of each sound.
-            soundOffsets=self.collectSPS(f,ChunkSize)
-            
-            for j in range(len(soundOffsets)):
-                offset=soundOffsets[j]
-                target=os.path.join(self.outputFolder,self.trueFilename)
-                if len(Chunks)>1 or len(soundOffsets)>1:
-                    target+=" "+str(i)+" "+str(j)
-                target+=".sps"
-                    
-                self.extractSPS(f,offset,target)
-
-            f.close()
-
     def extractHarmonyAsset(self):
         print(self.trueFilename)
 
-        Chunks=self.prim.get("$::SoundDataAsset/Chunks::SoundDataChunk-Array").fields
+        Chunks=self.prim.get("Chunks").value.fields
 
         RamChunkIndex=self.prim.get("RamChunkIndex").value
         if RamChunkIndex!=0xff:
@@ -827,6 +765,16 @@ class Dbx:
         if StreamChunkIndex!=0xff:
             chnk=Chunks[StreamChunkIndex].value.get("ChunkId").value
             self.extractChunk(chnk,".sbs")
+
+    def extractGenericSoundAsset(self,ext):
+        print(self.trueFilename)
+
+        Chunks=self.prim.get("Chunks").value.fields
+        for i in range(len(Chunks)):
+            field=Chunks[i]
+            ChunkId=field.value.get("ChunkId").value
+            ChunkSize=field.value.get("ChunkSize").value
+            self.extractChunk(ChunkId,ext,i,len(Chunks))
 
     def extractMovieAsset(self):
         print(self.trueFilename)

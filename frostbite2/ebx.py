@@ -132,34 +132,16 @@ class Complex:
         self.desc=desc
         self.dbx=dbxhandle #lazy
     def get(self,name):
-        pathElems=name.split("/")
-        curPos=self
-        if pathElems[-1].find("::")!=-1: #grab a complex
-            for elem in pathElems:
-                try:
-                    curPos=curPos.go1(elem)
-                except Exception as e:
-                    raise Exception("Could not find complex with name: "+str(e)+"\nFull path: "+name+"\nFilename: "+self.dbx.trueFilename)
-            return curPos
-        #grab a field instead
-        for elem in pathElems[:-1]:
-            try:
-                curPos=curPos.go1(elem)
-            except Exception as e:
-                raise Exception("Could not find complex with name: "+str(e)+"\nFull path: "+name+"\nFilename: "+self.dbx.trueFilename)
-        for field in curPos.fields:
-            if field.desc.name==pathElems[-1]:
+        for field in self.fields:
+            if field.desc.name==name:
                 return field
 
-        raise Exception("Could not find field with name: "+name+"\nFilename: "+self.dbx.trueFilename)
-
-    def go1(self,name): #go once
+        #Go up the inheritance chain.
         for field in self.fields:
-            if field.desc.getFieldType() in (FieldType.ValueType,FieldType.Void,FieldType.Array):
-                if field.desc.name+"::"+field.value.desc.name==name:
-                    return field.value
-        raise Exception(name)
+            if field.desc.getFieldType()==FieldType.Void:
+                return field.value.get(name)
 
+        raise Exception("Could not find field with name: "+name+"\nFilename: "+self.dbx.trueFilename)
 
 class Field:
     def __init__(self,desc,dbx):
@@ -515,8 +497,8 @@ class Dbx:
         self.resFolder=resFolder
 
         if self.prim.desc.name=="SoundWaveAsset": self.extractSoundWaveAsset()
+        elif self.prim.desc.name=="NfsTmxAsset": self.extractGenericSoundAsset(".tmx")
         elif self.prim.desc.name=="MovieTextureAsset": self.extractMovieAsset()
-        elif self.prim.desc.name=="NfsTmxAsset": self.extractTmxAsset()
 
     def findRes(self):
         path=os.path.join(self.resFolder,os.path.normpath(self.trueFilename.lower())+".res")
@@ -586,13 +568,13 @@ class Dbx:
         histogram=dict() #count the number of times each chunk is used by a variation to obtain the right index
 
         Chunks=[]
-        for i in self.prim.get("$::SoundDataAsset/Chunks::array").fields:
+        for i in self.prim.get("Chunks").value.fields:
             chnk=Stub()
             Chunks.append(chnk)
             chnk.ChunkId=i.value.get("ChunkId").value
             chnk.ChunkSize=i.value.get("ChunkSize").value
 
-        variations=[i.link() for i in self.prim.get("Variations::array").fields]
+        variations=[i.link() for i in self.prim.get("Variations").value.fields]
 
         Variations=[]
 
@@ -606,7 +588,7 @@ class Dbx:
 
 
             Variation.Segments=[]
-            segs=var.get("Segments::array").fields
+            segs=var.get("Segments").value.fields
             for seg in segs:
                 Segment=Stub()
                 Variation.Segments.append(Segment)
@@ -660,15 +642,15 @@ class Dbx:
         for key in ChunkHandles:
             ChunkHandles[key].close()
 
-    def extractTmxAsset(self):
+    def extractGenericSoundAsset(self,ext):
         print(self.trueFilename)
 
-        Chunks=self.prim.get("$::SoundDataAsset/Chunks::array").fields
+        Chunks=self.prim.get("Chunks").value.fields
         for i in range(len(Chunks)):
             field=Chunks[i]
-            ChunkId=field.value.get("ChunkId").value      
-            ChunkSize=field.value.get("ChunkSize").value                    
-            self.extractChunk(ChunkId,".tmx",i,len(Chunks))
+            ChunkId=field.value.get("ChunkId").value
+            ChunkSize=field.value.get("ChunkSize").value
+            self.extractChunk(ChunkId,ext,i,len(Chunks))
 
     def extractMovieAsset(self):
         print(self.trueFilename)
