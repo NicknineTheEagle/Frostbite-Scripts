@@ -500,15 +500,15 @@ class Dbx:
         elif self.prim.desc.name=="NfsTmxAsset": self.extractGenericSoundAsset(".tmx")
         elif self.prim.desc.name=="MovieTextureAsset": self.extractMovieAsset()
 
-    def findRes(self):
-        path=os.path.join(self.resFolder,os.path.normpath(self.trueFilename.lower())+".res")
+    def findRes(self,name):
+        path=os.path.join(self.resFolder,name)+".res"
         if not os.path.isfile(lp(path)):
-            print("Res does not exist: "+self.trueFilename)
+            print("Res does not exist: "+name)
             return None
         return path
 
-    def extractRes(self,ext):
-        resName=findRes(self)
+    def extractRes(self,name,ext):
+        resName=self.findRes(name)
         target=os.path.normpath(os.path.join(self.outputFolder,self.trueFilename)+ext)
         makeLongDirs(target)
         shutil.copyfile(lp(resName),lp(target))
@@ -657,6 +657,7 @@ class Dbx:
 
         chnk=self.prim.get("ChunkGuid").value
         if chnk.isNull():
-            self.extractRes(".vp6")
+            resName=self.prim.get("ResourceName").value
+            self.extractRes(resName,".vp6")
         else:
             self.extractChunk(chnk,".vp6")
