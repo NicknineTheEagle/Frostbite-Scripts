@@ -112,7 +112,7 @@ def dump(tocPath,baseTocPath,outPath):
 
         #Deal with the chunks which are defined directly in the toc.
         #These chunks do NOT know their originalSize.
-        for entry in toc.get("chunks"): # id sha1
+        for entry in toc.get("chunks"): #id sha1
             targetPath=os.path.join(chunkPathToc,formatGuid(entry.get("id"),False)+".chunk")
             payload.casChunkPayload(entry,targetPath)
     else:

@@ -51,7 +51,13 @@ def makeLongDirs(path):
 
 def open2(path,mode):
     #create folders if necessary and return the file handle
-    if mode.find("w")!=-1: makeLongDirs(path)
+    if mode.find("w")!=-1:
+        makeLongDirs(path)
+
+    #make sure we write text files in UTF-8 since that's what string fields use
+    if mode.find("b")==-1:
+        return open(lp(path),mode,encoding="utf-8")
+
     return open(lp(path),mode)
 
 def lp(path): #long pathnames
