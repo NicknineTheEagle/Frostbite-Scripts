@@ -1,47 +1,38 @@
 #Ebx format is the cornerstone of Frostbite, it's an asset node of sorts used to reference actual game assets
 #stored in chunk and res files as well as define scripts and configs for the game.
-#Ebx is platform native endian.
+#Ebx is machine endian.
 import string
 import sys
 import os
 import copy
 from struct import unpack,pack
 import shutil
+import pickle
 
 def unpackLE(typ,data): return unpack("<"+typ,data)
 def unpackBE(typ,data): return unpack(">"+typ,data)
 
-def createGuidTableFast(inputFolder,ebxFolder):
+guidTable=dict()
+
+def formatGuid(data,bigEndian):
+    guid=Guid(data,bigEndian,True)
+    return guid.format()
+
+def addEbxGuid(path,ebxRoot):
+    #Add EBX GUID and name to the database.
+    dbx=Dbx(path,ebxRoot)
+    guidTable[dbx.fileGUID]=dbx.trueFilename
+
+def writeGuidTable(dumpFolder):
+    f=open(os.path.join(dumpFolder,"guidTable.bin"),"wb")
+    pickle.dump(guidTable,f)
+    f.close()
+
+def loadGuidTable(dumpFolder):
     global guidTable
-    guidTable=dict()
-
-    for dir0, dirs, ff in os.walk(inputFolder):
-        for fname in ff:
-            path=os.path.join(dir0,fname)
-            f=open2(path,"rb")
-            magic=f.read(4)
-            if magic==b"\xCE\xD1\xB2\x0F":   bigEndian=False
-            elif magic==b"\x0F\xB2\xD1\xCE": bigEndian=True
-            else:
-                f.close()
-                continue
-            #grab the file guid directly, absolute offset 48 bytes
-            f.seek(48)
-            fileguid=Guid(f.read(16),bigEndian)
-            f.close()
-            filename=os.path.relpath(path,ebxFolder)
-            filename=os.path.splitext(filename)[0].replace("\\","/")
-            guidTable[fileguid]=filename
-
-def createGuidTable(inputFolder):
-    global guidTable
-    guidTable=dict()
-
-    for dir0, dirs, ff in os.walk(inputFolder):
-        for fname in ff:
-            f=open2(os.path.join(dir0,fname),"rb")
-            dbx=Dbx(f,fname)
-            guidTable[dbx.fileGUID]=dbx.trueFilename
+    f=open(os.path.join(dumpFolder,"guidTable.bin"),"rb")
+    guidTable=pickle.load(f)
+    f.close()
 
 def makeLongDirs(path):
     folderPath=lp(os.path.dirname(path))
@@ -134,9 +125,8 @@ class Guid:
         return self.val==(0,0,0,0)
 
 class Complex:
-    def __init__(self,desc,dbxhandle):
+    def __init__(self,desc):
         self.desc=desc
-        self.dbx=dbxhandle #lazy
     def get(self,name):
         for field in self.fields:
             if field.desc.name==name:
@@ -147,42 +137,33 @@ class Complex:
             if field.desc.getFieldType()==FieldType.Void:
                 return field.value.get(name)
 
-        raise Exception("Could not find field with name: "+name+"\nFilename: "+self.dbx.trueFilename)
+        raise Exception("Could not find field with name: "+name)
 
 class Field:
-    def __init__(self,desc,dbx):
+    def __init__(self,desc):
         self.desc=desc
-        self.dbx=dbx
-    def link(self):
+    def link(self,dbx):
         if self.desc.getFieldType()!=FieldType.Class:
-            raise Exception("Invalid link, wrong field type\nField name: "+self.desc.name+"\nField type: "+hex(self.desc.getFieldType())+"\nFile name: "+self.dbx.trueFilename)
+            raise Exception("Invalid link, wrong field type\nField name: "+self.desc.name+"\nField type: "+hex(self.desc.getFieldType())+"\nFile name: "+dbx.trueFilename)
 
         if self.value>>31:
-            if self.dbx.ebxRoot=="":
+            if dbx.ebxRoot=="":
                 raise Exception("Ebx root path is not specified!")
-            
-            extguid=self.dbx.externalGUIDs[self.value&0x7fffffff]
 
-            for existingDbx in dbxArray:
-                if existingDbx.fileGUID==extguid[0]:
-                    for guid, instance in existingDbx.instances:
-                        if guid==extguid[1]:
-                            return instance
+            extguid=dbx.externalGUIDs[self.value&0x7fffffff]
 
-            f=openEbx(os.path.join(self.dbx.ebxRoot,guidTable[extguid[0]]+".ebx"))
 ##            print guidTable[extguid[0]]
-            dbx=Dbx(f)
-            dbxArray.append(dbx)
-            for guid, instance in dbx.instances:
+            extDbx=Dbx(os.path.join(dbx.ebxRoot,guidTable[extguid[0]]+".ebx").lower(),dbx.ebxRoot)
+            for guid, instance in extDbx.instances:
                 if guid==extguid[1]:
                     return instance
-            raise Exception("Nullguid link.\nFilename: "+self.dbx.trueFilename)
+            raise Exception("Nullguid link.\nFilename: "+dbx.trueFilename)
         elif self.value!=0:
-            for guid, instance in self.dbx.instances:
-                if guid==self.dbx.internalGUIDs[self.value-1]:
+            for guid, instance in dbx.instances:
+                if guid==dbx.internalGUIDs[self.value-1]:
                     return instance
         else:
-            raise Exception("Nullguid link.\nFilename: "+self.dbx.trueFilename)
+            raise Exception("Nullguid link.\nFilename: "+dbx.trueFilename)
 
         raise Exception("Invalid link, could not find target.")
 
@@ -210,16 +191,9 @@ class FieldType:
     Float64 = 0x14
     GUID = 0x15
     SHA1 = 0x16
-    
-    def __init__(self):
-        pass       
 
-def openEbx(fname):
-    f=open2(fname,"rb")
-    if f.read(4) not in (b"\xCE\xD1\xB2\x0F",b"\x0F\xB2\xD1\xCE"):
-        f.close()
-        raise Exception("Invalid EBX file: "+fname)
-    return f
+    def __init__(self):
+        pass
 
 class Stub:
     pass
@@ -227,13 +201,15 @@ class Stub:
 
 
 class Dbx:
-    def __init__(self,f,relPath,ebxRoot=""):
+    def __init__(self,path,ebxRoot):
+        f=open2(path,"rb")
+
+        #metadata
         magic=f.read(4)
         if magic==b"\xCE\xD1\xB2\x0F":   self.bigEndian=False
         elif magic==b"\x0F\xB2\xD1\xCE": self.bigEndian=True
         else: raise ValueError("The file is not ebx: "+relPath)
 
-        #Ebx files have platform native endianness.
         self.unpack=unpackBE if self.bigEndian else unpackLE
         self.ebxRoot=ebxRoot
         self.trueFilename=""
@@ -273,11 +249,11 @@ class Dbx:
         #if no filename found, use the relative input path instead
         #it's just as good though without capitalization
         if self.trueFilename=="":
-            self.trueFilename=relPath
+            self.trueFilename=os.path.relpath(f.name,ebxRoot).replace("\\","/")[:-4]
 
     def readComplex(self, complexIndex,f):
         complexDesc=self.complexDescriptors[complexIndex]
-        cmplx=Complex(complexDesc,self)
+        cmplx=Complex(complexDesc)
 
         startPos=f.tell()
         cmplx.fields=[]
@@ -290,33 +266,33 @@ class Dbx:
 
     def readField(self,fieldIndex,f):
         fieldDesc=self.fieldDescriptors[fieldIndex]
-        field=Field(fieldDesc,self)
-        type=fieldDesc.getFieldType()
-        
-        if type==FieldType.Void:
+        field=Field(fieldDesc)
+        typ=fieldDesc.getFieldType()
+
+        if typ==FieldType.Void:
             # Void (inheritance)
             field.value=self.readComplex(fieldDesc.ref,f)
 
-        elif type==FieldType.ValueType:
+        elif typ==FieldType.ValueType:
             # ValueType
             field.value=self.readComplex(fieldDesc.ref,f)
 
-        elif type==FieldType.Class:
+        elif typ==FieldType.Class:
             # Class (reference)
             field.value=self.unpack('I',f.read(4))[0]
 
-        elif type==FieldType.Array:
+        elif typ==FieldType.Array:
             # Array
-            array_repeater=self.arrayRepeaters[self.unpack("I",f.read(4))[0]]
-            array_complex_desc=self.complexDescriptors[fieldDesc.ref]
+            arrayRptr=self.arrayRepeaters[self.unpack("I",f.read(4))[0]]
+            arrayCmplxDesc=self.complexDescriptors[fieldDesc.ref]
 
-            f.seek(self.arraySectionstart+array_repeater.offset)
-            array_complex=Complex(array_complex_desc,self)
-            array_complex.fields=[self.readField(array_complex_desc.fieldStartIndex, f) for repetition in
-                                    range(array_repeater.repetitions)]
-            field.value=array_complex
+            f.seek(self.arraySectionstart+arrayRptr.offset)
+            arrayCmplx=Complex(arrayCmplxDesc)
+            arrayCmplx.fields=[self.readField(arrayCmplxDesc.fieldStartIndex, f) for repetition in
+                                    range(arrayRptr.repetitions)]
+            field.value=arrayCmplx
 
-        elif type==FieldType.CString:
+        elif typ==FieldType.CString:
             # CString
             startPos=f.tell()
             stringOffset=self.unpack("i",f.read(4))[0]
@@ -335,7 +311,7 @@ class Dbx:
                 if self.isPrimaryInstance and fieldDesc.name=="Name" and self.trueFilename=="":
                     self.trueFilename=field.value
 
-        elif type==FieldType.Enum:
+        elif typ==FieldType.Enum:
             # Enum
             compareValue=self.unpack("i",f.read(4))[0]
             enumComplex=self.complexDescriptors[fieldDesc.ref]
@@ -354,7 +330,7 @@ class Dbx:
             else:
                 field.value=self.enumerations[fieldDesc.ref].values[compareValue]
 
-        elif type==FieldType.FileRef:
+        elif typ==FieldType.FileRef:
             # FileRef
             startPos=f.tell()
             stringOffset=self.unpack("i",f.read(4))[0]
@@ -373,61 +349,61 @@ class Dbx:
                 if self.isPrimaryInstance and fieldDesc.name=="Name" and self.trueFilename=="":
                     self.trueFilename=field.value
 
-        elif type==FieldType.Boolean:
+        elif typ==FieldType.Boolean:
             # Boolean
             field.value=self.unpack('?',f.read(1))[0]
 
-        elif type==FieldType.Int8:
+        elif typ==FieldType.Int8:
             # Int8
             field.value=self.unpack('b',f.read(1))[0]
 
-        elif type==FieldType.UInt8:
+        elif typ==FieldType.UInt8:
             # UInt8
             field.value=self.unpack('B',f.read(1))[0]
 
-        elif type==FieldType.Int16:
+        elif typ==FieldType.Int16:
             # Int16
             field.value=self.unpack('h',f.read(2))[0]
 
-        elif type==FieldType.UInt16:
+        elif typ==FieldType.UInt16:
             # UInt16
             field.value=self.unpack('H',f.read(2))[0]
 
-        elif type==FieldType.Int32:
+        elif typ==FieldType.Int32:
             # Int32
             field.value=self.unpack('i',f.read(4))[0]
 
-        elif type==FieldType.UInt32:
+        elif typ==FieldType.UInt32:
             # UInt32
             field.value=self.unpack('I',f.read(4))[0]
 
-        elif type==FieldType.Int64:
+        elif typ==FieldType.Int64:
             # Int64
             field.value=self.unpack('q',f.read(8))[0]
 
-        elif type==FieldType.UInt64:
+        elif typ==FieldType.UInt64:
             # UInt64
             field.value=self.unpack('Q',f.read(8))[0]
 
-        elif type==FieldType.Float32:
+        elif typ==FieldType.Float32:
             # Float32
             field.value=self.unpack('f',f.read(4))[0]
 
-        elif type==FieldType.Float64:
+        elif typ==FieldType.Float64:
             # Float64
             field.value=self.unpack('d',f.read(8))[0]
 
-        elif type==FieldType.GUID:
+        elif typ==FieldType.GUID:
             # Guid
             field.value=Guid(f.read(16),self.bigEndian)
 
-        elif type==FieldType.SHA1:
+        elif typ==FieldType.SHA1:
             # SHA1
             field.value=f.read(20)
 
         else:
             # Unknown
-            raise Exception("Unknown field type 0x%02x" % type)
+            raise Exception("Unknown field type 0x%02x" % typ)
 
         return field
 
@@ -435,13 +411,11 @@ class Dbx:
         print(self.trueFilename)
         outName=os.path.join(outputFolder,self.trueFilename+".txt")
         f2=open2(outName,"w")
-        IGNOREINSTANCES=[]
 
         for (guid,instance) in self.instances:
-            if instance.desc.name not in IGNOREINSTANCES:
-                if guid==self.primaryInstanceGUID: self.writeInstance(f2,instance,guid.format()+ " #primary instance")
-                else: self.writeInstance(f2,instance,guid.format())
-                self.recurse(instance.fields,f2,0)
+            if guid==self.primaryInstanceGUID: self.writeInstance(f2,instance,guid.format()+ " #primary instance")
+            else: self.writeInstance(f2,instance,guid.format())
+            self.recurse(instance.fields,f2,0)
         f2.close()
 
     def recurse(self, fields, f2, lvl): #over fields
@@ -492,8 +466,8 @@ class Dbx:
 
     def writeField(self,f,field,lvl,text):
         f.write(lvl*"\t"+field.desc.name+text+"\n")
-        
-    def writeInstance(self,f,cmplx,text):  
+
+    def writeInstance(self,f,cmplx,text):
         f.write(cmplx.desc.name+" "+text+"\n")
 
     def extractAssets(self,chunkFolder,chunkFolder2,resFolder,outputFolder):
@@ -507,7 +481,7 @@ class Dbx:
         elif self.prim.desc.name=="MovieTextureAsset": self.extractMovieAsset()
 
     def findRes(self,name):
-        path=os.path.join(self.resFolder,name)+".res"
+        path=os.path.join(self.resFolder,name+".res").lower()
         if not os.path.isfile(lp(path)):
             print("Res does not exist: "+name)
             return None
@@ -515,7 +489,10 @@ class Dbx:
 
     def extractRes(self,name,ext):
         resName=self.findRes(name)
-        target=os.path.normpath(os.path.join(self.outputFolder,self.trueFilename)+ext)
+        if not resName:
+            return
+
+        target=os.path.join(self.outputFolder,self.trueFilename)+ext
         makeLongDirs(target)
         shutil.copyfile(lp(resName),lp(target))
 
@@ -530,16 +507,16 @@ class Dbx:
         chnkPath=os.path.join(self.chunkFolder2,ChunkId+".chunk")
         if os.path.isfile(chnkPath):
             return chnkPath
-        
+
         print("Chunk does not exist: "+ChunkId)
         return None
 
     def extractChunk(self,chnk,ext,idx=-1,totalChunks=0):
-        currentChunkName=self.findChunk(chnk)      
+        currentChunkName=self.findChunk(chnk)
         if not currentChunkName:
             return
 
-        target=os.path.normpath(os.path.join(self.outputFolder,self.trueFilename))
+        target=os.path.join(self.outputFolder,self.trueFilename)
         if totalChunks>1: target+=" "+str(idx)
         target+=ext
         makeLongDirs(target)
@@ -580,7 +557,7 @@ class Dbx:
             chnk.ChunkId=i.value.get("ChunkId").value
             chnk.ChunkSize=i.value.get("ChunkSize").value
 
-        variations=[i.link() for i in self.prim.get("Variations").value.fields]
+        variations=[i.link(self) for i in self.prim.get("Variations").value.fields]
 
         Variations=[]
 
@@ -630,10 +607,10 @@ class Dbx:
                 if not currentChunkName:
                     continue
 
-                f=open2(currentChunkName,"rb")
+                f=open(currentChunkName,"rb")
                 ChunkHandles[Variation.ChunkId]=f
                 #print("Chunk found: "+currentChunkName)
-        
+
             for ijk in range(len(Variation.Segments)):
                 Segment=Variation.Segments[ijk]
                 offset=Segment.SamplesOffset
@@ -661,9 +638,9 @@ class Dbx:
     def extractMovieAsset(self):
         print(self.trueFilename)
 
-        chnk=self.prim.get("ChunkGuid").value
-        if chnk.isNull():
+        if self.prim.get("StreamMovieFile"):
+            chnk=self.prim.get("ChunkGuid").value
+            self.extractChunk(chnk,".vp6")
+        else:
             resName=self.prim.get("ResourceName").value
             self.extractRes(resName,".vp6")
-        else:
-            self.extractChunk(chnk,".vp6")

@@ -89,27 +89,24 @@ def dump(tocPath,outPath):
 
         for entry in bundle.get("ebx"): #name sha1 size originalSize
             path=os.path.join(ebxPath,entry.get("name")+".ebx")
-            payload.casPayload(entry,path)
+            if payload.casPayload(entry,path):
+                ebx.addEbxGuid(path,ebxPath)
 
         for entry in bundle.get("res"): #name sha1 size originalSize resRid resType resMeta
             path=os.path.join(resPath,entry.get("name")+".res")
             payload.casPayload(entry,path)
 
         for entry in bundle.get("chunks"): #id sha1 size logicalOffset logicalSize chunkMeta::meta
-            path=os.path.join(chunkPath,formatGuid(entry.get("id"),False)+".chunk")
+            path=os.path.join(chunkPath,ebx.formatGuid(entry.get("id"),False)+".chunk")
             payload.casPayload(entry,path)
 
     #Deal with the chunks which are defined directly in the toc.
     #These chunks do NOT know their originalSize.
     for entry in toc.get("chunks"): # id sha1
-        targetPath=os.path.join(chunkPathToc,formatGuid(entry.get("id"),False)+".chunk")
+        targetPath=os.path.join(chunkPathToc,ebx.formatGuid(entry.get("id"),False)+".chunk")
         payload.casChunkPayload(entry,targetPath)
 
     sb.close()
-
-def formatGuid(data,bigEndian):
-    guid=ebx.Guid(data,bigEndian)
-    return guid.format()
 
 #FrontEnd DAS files, this is its own archive format completely separate from the rest of the filesystem.
 def extractDas(dasPath,outPath):

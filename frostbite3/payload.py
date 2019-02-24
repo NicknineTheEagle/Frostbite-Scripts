@@ -169,17 +169,18 @@ def decompressPatchedPayload(basePath,baseOffset,deltaPath,deltaOffset,deltaSize
 
 #for each bundle, the dump script selects one of these six functions
 def casPayload(bundleEntry, targetPath):
-    if os.path.isfile(lp(targetPath)): return
+    if os.path.isfile(lp(targetPath)): return False
 
     #Some files may be from localizations user doesn't have installed.
     try:
         catEntry=cas.catDict[bundleEntry.get("sha1")]
         decompressPayload(catEntry.path,catEntry.offset,catEntry.size,bundleEntry.get("originalSize"),targetPath)
+        return True
     except:
-        return
+        return False
 
 def casPatchedPayload(bundleEntry, targetPath):
-    if os.path.isfile(lp(targetPath)): return
+    if os.path.isfile(lp(targetPath)): return False
 
     if bundleEntry.get("casPatchType")==2:
         catDelta=cas.catDict[bundleEntry.get("deltaSha1")]
@@ -187,33 +188,38 @@ def casPatchedPayload(bundleEntry, targetPath):
         decompressPatchedPayload(catBase.path,catBase.offset,
                                  catDelta.path,catDelta.offset,catDelta.size,
                                  bundleEntry.get("originalSize"),targetPath)
+        return True
     else:
-        casPayload(bundleEntry, targetPath) #if casPatchType is not 2, use the unpatched function.
+        return casPayload(bundleEntry, targetPath) #if casPatchType is not 2, use the unpatched function.
 
 def casChunkPayload(entry,targetPath):
-    if os.path.isfile(lp(targetPath)): return
+    if os.path.isfile(lp(targetPath)): return False
 
     #Some files may be from localizations user doesn't have installed.
     try:
         catEntry=cas.catDict[entry.get("sha1")]
         decompressPayload(catEntry.path,catEntry.offset,catEntry.size,None,targetPath)
+        return True
     except:
-        return
+        return False
 
 def noncasPayload(entry, targetPath, sourcePath):
-    if os.path.isfile(lp(targetPath)): return
+    if os.path.isfile(lp(targetPath)): return False
     decompressPayload(sourcePath,entry.offset,entry.size,entry.originalSize,targetPath)
+    return True
 
 def noncasPatchedPayload(entry, targetPath, sourcePath):
-    if os.path.isfile(lp(targetPath)): return
+    if os.path.isfile(lp(targetPath)): return False
     decompressPatchedPayload(sourcePath[0], entry.baseOffset,#entry.baseSize,
                             sourcePath[1], entry.deltaOffset, entry.deltaSize,
                             entry.originalSize, targetPath,
                             entry.midInstructionType, entry.midInstructionSize)
+    return True
 
 def noncasChunkPayload(entry, targetPath, sourcePath):
-    if os.path.isfile(lp(targetPath)): return
+    if os.path.isfile(lp(targetPath)): return False
     decompressPayload(sourcePath,entry.get("offset"),entry.get("size"),None,targetPath)
+    return True
 
 
 

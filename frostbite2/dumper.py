@@ -166,7 +166,8 @@ def dump(tocPath,baseTocPath,outPath):
 
             for entry in bundle.get("ebx"): #name sha1 size originalSize
                 path=os.path.join(ebxPath,entry.get("name")+".ebx")
-                casHandlePayload(entry,path)
+                if casHandlePayload(entry,path):
+                    ebx.addEbxGuid(path,ebxPath)
 
             for entry in bundle.get("dbx"): #name sha1 size originalSize
                 if entry.get("idata"): #dbx appear only idata if at all, they are probably deprecated and were not meant to be shipped at all.
@@ -183,12 +184,12 @@ def dump(tocPath,baseTocPath,outPath):
                 casHandlePayload(entry,path)
 
             for entry in bundle.get("chunks"): #id sha1 size chunkMeta::h32 chunkMeta::meta
-                path=os.path.join(chunkPath,formatGuid(entry.get("id"),False)+".chunk")
+                path=os.path.join(chunkPath,ebx.formatGuid(entry.get("id"),False)+".chunk")
                 casHandlePayload(entry,path)
 
         #deal with cas chunks defined in the toc.
         for entry in toc.get("chunks"): #id sha1
-            path=os.path.join(chunkPathToc,formatGuid(entry.get("id"),False)+".chunk")
+            path=os.path.join(chunkPathToc,ebx.formatGuid(entry.get("id"),False)+".chunk")
             casHandlePayload(entry,path)
 
     else:
@@ -233,7 +234,8 @@ def dump(tocPath,baseTocPath,outPath):
 
             for entry in bundle.ebxEntries:
                 path=os.path.join(ebxPath,entry.name+".ebx")
-                noncasHandlePayload(sb2,entry.offset,entry.size,entry.originalSize,path)
+                if noncasHandlePayload(sb2,entry.offset,entry.size,entry.originalSize,path):
+                    ebx.addEbxGuid(path,ebxPath)
 
             for entry in bundle.resEntries:
                 originalSize=entry.originalSize
@@ -241,12 +243,12 @@ def dump(tocPath,baseTocPath,outPath):
                 noncasHandlePayload(sb2,entry.offset,entry.size,entry.originalSize,path)
 
             for entry in bundle.chunkEntries:
-                path=os.path.join(chunkPath,formatGuid(entry.id,True)+".chunk")
+                path=os.path.join(chunkPath,ebx.formatGuid(entry.id,True)+".chunk")
                 noncasHandlePayload(sb2,entry.offset,entry.size,None,path)
 
         #deal with noncas chunks defined in the toc
         for entry in toc.get("chunks"): #id offset size
-            path=os.path.join(chunkPathToc,formatGuid(entry.get("id"),False)+".chunk")
+            path=os.path.join(chunkPathToc,ebx.formatGuid(entry.get("id"),False)+".chunk")
             noncasHandlePayload(sb,entry.get("offset"),entry.get("size"),None,path)
 
     #Clean up.
@@ -257,12 +259,8 @@ def dump(tocPath,baseTocPath,outPath):
 
 
 
-def formatGuid(data,bigEndian):
-    guid=ebx.Guid(data,bigEndian)
-    return guid.format()
-
 def casHandlePayload(entry,outPath):
-    if os.path.isfile(lp(outPath)): return
+    if os.path.isfile(lp(outPath)): return False
 
     if entry.get("originalSize"):
         compressed=False if entry.get("size")==entry.get("originalSize") else True #I cannot tell for certain if this is correct. I do not have any negative results though.
@@ -283,8 +281,10 @@ def casHandlePayload(entry,outPath):
         cas.close()
     out.close()
 
+    return True
+
 def noncasHandlePayload(sb,offset,size,originalSize,outPath):
-    if os.path.isfile(lp(outPath)): return
+    if os.path.isfile(lp(outPath)): return False
 
     sb.seek(offset)
     out=open2(outPath,"wb")
@@ -296,6 +296,8 @@ def noncasHandlePayload(sb,offset,size,originalSize,outPath):
     else:
         out.write(zlibb(sb,size))
     out.close()
+
+    return True
 
 tempSbFiles=list()
 
@@ -385,6 +387,10 @@ if os.path.isdir(updateDir):
 print("Extracting main game...")
 dumpRoot(dataDir,patchDir,targetDirectory)
 
+#Write GUID table.
+print("Writing EBX GUID table...")
+ebx.writeGuidTable(targetDirectory)
+
 #MOH:WF hack: extract driving levels assets.
 if os.path.isdir(os.path.join(gameDirectory,"game","Speed")):
     print("Extracting MOH:WF driving assets...")
@@ -393,3 +399,7 @@ if os.path.isdir(os.path.join(gameDirectory,"game","Speed")):
     updateDir=os.path.join(gameDirectory,"Update")
     patchDir=os.path.join(updateDir,"Patch","Speed")
     dumpRoot(dataDir,patchDir,os.path.join(targetDirectory,"speed"))
+
+    #Write GUID table.
+    print("Writing EBX GUID table...")
+    ebx.writeGuidTable(os.path.join(targetDirectory,"speed"))

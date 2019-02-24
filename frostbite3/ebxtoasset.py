@@ -27,12 +27,10 @@ chunkFolder2 = r"bundles\chunks" #if the chunk is not found in the first folder,
 ebxFolder,chunkFolder,chunkFolder2 = [os.path.join(dumpDirectory, path) for path in (ebxFolder, chunkFolder, chunkFolder2)]
 inputFolder=os.path.join(ebxFolder,inputFolder)
 
-print("Generating GUID table...")
-ebx.createGuidTableFast(inputFolder,ebxFolder)
+print("Loading GUID table...")
+ebx.loadGuidTable(dumpDirectory)
 
 for dir0, dirs, ff in os.walk(inputFolder):
     for fname in ff:
-        f=ebx.open2(os.path.join(dir0,fname),"rb")
-        dbx=ebx.Dbx(f,fname,ebxFolder)
-        f.close()
+        dbx=ebx.Dbx(os.path.join(dir0,fname),ebxFolder)
         dbx.extractAssets(chunkFolder,chunkFolder2,targetDirectory)
