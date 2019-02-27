@@ -1,5 +1,7 @@
-These are Python scripts that allow you to extract assets from Frostbite Engine games. All scripts require Python 3 (32-bit).
+These are Python scripts that allow you to extract assets from Frostbite Engine games.
 They're based off Frankelstner's scripts, I've updated them to Python 3 and did a bunch of tweaks and cleanups to them.
+
+**All scripts require Python 3 (64-bit)!**
 
 There is one folder for each Frostbite version:
  * frostbite2 
@@ -8,7 +10,7 @@ There is one folder for each Frostbite version:
    * Frostbite Engine 3 (2013-present) - Battlefield 4, Need for Speed: Rivals, ...
    * Newest games from 2018 and later (Battlefield V, FIFA 19, Anthem) are not supported yet.
    * Mass Effect: Andromeda is not supported yet since its TOC files are encrypted.
-   * IMPORTANT: In FIFA 18, some files are compressed with Oodle. I can't distribute the library required to decompress it here since it's proprietary and the one from FIFA 18 itself is 64-bit so it can't be used with Python 32-bit. You'll need to get oo2core_6_win32.dll from a game using Oodle and put it into frostbite3 directory. Your best bet is to get it from Warframe, it's a F2P game: https://store.steampowered.com/app/230410
+   * IMPORTANT: FIFA 18 uses Oodle compression but I can't distribute the library required to decompress it here since it's proprietary. So make sure you grab oo2core_4_win64.dll from your game installation and place it into frostbite3 directory before extraction.
  
 In each directory, you'll find the following scripts:
  * dumper - adjust the paths at the start and run it to dump all the contents of superbundles; all the other scripts are meant to be used with the resulting dump
@@ -31,3 +33,8 @@ So if you want to get the game assets you need to take the EBX files and use the
 CREDITS:
  * Frankelstner - initial research of Frostbite formats and original Python scripts
  * NoFaTe - some improvements to Ebx and DbObject parser
+ 
+Libraries used:
+ * LZ4 - https://github.com/lz4/lz4
+ * Zstd - https://github.com/facebook/zstd
+ * Oodle - http://www.radgametools.com/oodle.htm

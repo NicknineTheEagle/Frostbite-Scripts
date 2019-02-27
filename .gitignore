@@ -109,4 +109,5 @@ venv.bak/
 .vs/
 
 # Proprietary stuff
-oo2core_6_win32.dll
+oo2core_4_win64.dll
+oo2core_6_win64.dll

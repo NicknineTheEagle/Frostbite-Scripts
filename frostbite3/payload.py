@@ -7,7 +7,7 @@ import zlib
 
 liblz4 = ctypes.cdll.LoadLibrary("liblz4")
 libzstd = ctypes.cdll.LoadLibrary("libzstd")
-try: oodle = ctypes.windll.LoadLibrary("oo2core_6_win32")
+try: oodle = ctypes.windll.LoadLibrary("oo2core_4_win64")
 except: oodle = None
 
 
@@ -63,7 +63,7 @@ def decompressBlock(f,f2):
         f2.write(dstBuf)
     elif comType==0x15:
         #Block is compressed with Oodle. Only used in FIFA 18/19 so far.
-        if not oodle: raise Exception("You need oo2core_6_win32.dll to decompress Oodle.")
+        if not oodle: raise Exception("You need oo2core_4_win64.dll to decompress Oodle v4.")
         srcBuf=f.read(compressedSize)
         dstBuf=bytes(uncompressedSize)
         oodle.OodleLZ_Decompress(srcBuf,compressedSize,dstBuf,uncompressedSize,0,0,0,0,0,0,0,0,0,3)
@@ -227,7 +227,7 @@ def zstdInit():
     #Load Zstd compression dictionary.
     global zstd_dict
 
-    f=open("comp_dict.bin","rb")
+    f=open("zstdDict.bin","rb")
     data=f.read()
     f.close()
     zstd_dict=ctypes.c_void_p(libzstd.ZSTD_createDDict(data,len(data)))

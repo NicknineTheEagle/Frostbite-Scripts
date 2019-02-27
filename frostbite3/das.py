@@ -102,7 +102,7 @@ def dump(tocPath,outPath):
 
     #Deal with the chunks which are defined directly in the toc.
     #These chunks do NOT know their originalSize.
-    for entry in toc.get("chunks"): # id sha1
+    for entry in toc.get("chunks"): #id sha1
         targetPath=os.path.join(chunkPathToc,ebx.formatGuid(entry.get("id"),False)+".chunk")
         payload.casChunkPayload(entry,targetPath)
 
@@ -171,7 +171,6 @@ def dumpRoot(dataDir,outPath):
                 fname=os.path.join(dir0,fname)
                 localPath=os.path.relpath(fname,dataDir)
                 print(localPath)
-
                 dump(fname,outPath)
 
 def dumpFE(dataDir,outPath):
