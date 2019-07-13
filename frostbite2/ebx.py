@@ -15,7 +15,7 @@ def unpackBE(typ,data): return unpack(">"+typ,data)
 guidTable=dict()
 
 def formatGuid(data,bigEndian):
-    guid=Guid(data,bigEndian,True)
+    guid=Guid(data,bigEndian)
     return guid.format()
 
 def addEbxGuid(path,ebxRoot):
