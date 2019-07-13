@@ -279,7 +279,7 @@ class Dbx:
 
         elif typ==FieldType.Class:
             # Class (reference)
-            field.value=self.unpack('I',f.read(4))[0]
+            field.value=self.unpack("I",f.read(4))[0]
 
         elif typ==FieldType.Array:
             # Array
@@ -351,47 +351,47 @@ class Dbx:
 
         elif typ==FieldType.Boolean:
             # Boolean
-            field.value=self.unpack('?',f.read(1))[0]
+            field.value=self.unpack("?",f.read(1))[0]
 
         elif typ==FieldType.Int8:
             # Int8
-            field.value=self.unpack('b',f.read(1))[0]
+            field.value=self.unpack("b",f.read(1))[0]
 
         elif typ==FieldType.UInt8:
             # UInt8
-            field.value=self.unpack('B',f.read(1))[0]
+            field.value=self.unpack("B",f.read(1))[0]
 
         elif typ==FieldType.Int16:
             # Int16
-            field.value=self.unpack('h',f.read(2))[0]
+            field.value=self.unpack("h",f.read(2))[0]
 
         elif typ==FieldType.UInt16:
             # UInt16
-            field.value=self.unpack('H',f.read(2))[0]
+            field.value=self.unpack("H",f.read(2))[0]
 
         elif typ==FieldType.Int32:
             # Int32
-            field.value=self.unpack('i',f.read(4))[0]
+            field.value=self.unpack("i",f.read(4))[0]
 
         elif typ==FieldType.UInt32:
             # UInt32
-            field.value=self.unpack('I',f.read(4))[0]
+            field.value=self.unpack("I",f.read(4))[0]
 
         elif typ==FieldType.Int64:
             # Int64
-            field.value=self.unpack('q',f.read(8))[0]
+            field.value=self.unpack("q",f.read(8))[0]
 
         elif typ==FieldType.UInt64:
             # UInt64
-            field.value=self.unpack('Q',f.read(8))[0]
+            field.value=self.unpack("Q",f.read(8))[0]
 
         elif typ==FieldType.Float32:
             # Float32
-            field.value=self.unpack('f',f.read(4))[0]
+            field.value=self.unpack("f",f.read(4))[0]
 
         elif typ==FieldType.Float64:
             # Float64
-            field.value=self.unpack('d',f.read(8))[0]
+            field.value=self.unpack("d",f.read(8))[0]
 
         elif typ==FieldType.GUID:
             # Guid
@@ -421,13 +421,13 @@ class Dbx:
     def recurse(self, fields, f2, lvl): #over fields
         lvl+=1
         for field in fields:
-            type=field.desc.getFieldType()
+            typ=field.desc.getFieldType()
 
-            if type in (FieldType.Void,FieldType.ValueType):
+            if typ in (FieldType.Void,FieldType.ValueType):
                 self.writeField(f2,field,lvl,"::"+field.value.desc.name)
                 self.recurse(field.value.fields,f2,lvl)
 
-            elif type==FieldType.Class:
+            elif typ==FieldType.Class:
                 towrite=""
                 if field.value>>31:
                     extguid=self.externalGUIDs[field.value&0x7fffffff]
@@ -440,7 +440,7 @@ class Dbx:
                     towrite=intGuid.format()
                 self.writeField(f2,field,lvl," "+towrite)
 
-            elif type==FieldType.Array:
+            elif typ==FieldType.Array:
                 if len(field.value.fields)==0:
                     self.writeField(f2,field,lvl," *nullArray*")
                 else:
@@ -455,10 +455,10 @@ class Dbx:
                             member.desc=desc
                     self.recurse(field.value.fields,f2,lvl)
 
-            elif type==FieldType.GUID:
+            elif typ==FieldType.GUID:
                 self.writeField(f2,field,lvl," "+field.value.format())
 
-            elif type==FieldType.SHA1:
+            elif typ==FieldType.SHA1:
                 self.writeField(f2,field,lvl," "+field.value.hex().upper())
 
             else:

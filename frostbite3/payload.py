@@ -154,7 +154,7 @@ def decompressPatchedPayload(basePath,baseOffset,deltaPath,deltaOffset,deltaSize
                 dictFlag, uncompressedSize, comType, compressedSize = readBlockHeader(base)
                 base.seek(compressedSize,1)
         else:
-            raise Exception("Unknown payload type: 0x%02x Delta offset: 0x%08x" % (instructionType,delta.tell()-0x04))
+            raise Exception("Unknown payload type: 0x%02x Delta offset: 0x%08x" % (instructionType,delta.tell()-4))
 
         instructionType=-1
         if f2.tell()==originalSize: break
