@@ -10,6 +10,15 @@ libzstd = ctypes.cdll.LoadLibrary("libzstd")
 try: oodle = ctypes.windll.LoadLibrary("oo2core_4_win64")
 except: oodle = None
 
+libzstd.ZSTD_createDDict.restype=ctypes.c_void_p
+libzstd.ZSTD_createDDict.argtypes=[ctypes.c_void_p,ctypes.c_uint64]
+libzstd.ZSTD_freeDDict.argtypes=[ctypes.c_void_p]
+libzstd.ZSTD_createDCtx.restype=ctypes.c_void_p
+libzstd.ZSTD_decompress_usingDDict.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_uint64,ctypes.c_void_p]
+libzstd.ZSTD_freeDCtx.argtypes=[ctypes.c_void_p]
+libzstd.ZSTD_decompress.argtypes=[ctypes.c_void_p,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_uint64]
+liblz4.LZ4_decompress_safe_partial.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_uint64,ctypes.c_uint64,ctypes.c_uint64]
+
 
 
 def makeLongDirs(path):
