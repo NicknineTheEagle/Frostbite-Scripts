@@ -127,7 +127,7 @@ class Guid:
 class Complex:
     def __init__(self,desc):
         self.desc=desc
-    def get(self,name):
+    def get(self,name,critical=True):
         for field in self.fields:
             if field.desc.name==name:
                 return field
@@ -135,9 +135,12 @@ class Complex:
         #Go up the inheritance chain.
         for field in self.fields:
             if field.desc.getFieldType()==FieldType.Void:
-                return field.value.get(name)
+                return field.value.get(name,critical)
 
-        raise Exception("Could not find field with name: "+name)
+        if critical:
+            raise Exception("Could not find field with name: "+name)
+        else:
+            return None
 
 class Field:
     def __init__(self,desc):
@@ -637,8 +640,9 @@ class Dbx:
 
     def extractMovieAsset(self):
         print(self.trueFilename)
+        isStreamed=self.prim.get("StreamMovieFile",False)
 
-        if self.prim.get("StreamMovieFile"):
+        if isStreamed==None or isStreamed.value==True:
             chnk=self.prim.get("ChunkGuid").value
             self.extractChunk(chnk,".vp6")
         else:

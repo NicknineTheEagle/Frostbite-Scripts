@@ -147,7 +147,7 @@ class InstanceIndex: #Used for instances with no GUID
 class Complex:
     def __init__(self,desc):
         self.desc=desc
-    def get(self,name):
+    def get(self,name,critical=True):
         for field in self.fields:
             if field.desc.name==name:
                 return field
@@ -155,9 +155,12 @@ class Complex:
         #Go up the inheritance chain.
         for field in self.fields:
             if field.desc.getFieldType()==FieldType.Void:
-                return field.value.get(name)
+                return field.value.get(name,critical)
 
-        raise Exception("Could not find field with name: "+name)
+        if critical:
+            raise Exception("Could not find field with name: "+name)
+        else:
+            return None
 
 class Field:
     def __init__(self,desc):
@@ -759,12 +762,12 @@ class Dbx:
         print(self.trueFilename)
 
         ext=""
-        try:
+        if self.prim.get("HasVp6",False)!=None:
             #Detect type.
-            if self.prim.get("HasVp6"): ext=".vp6"
-            elif self.prim.get("HasVp8"): ext=".vp8"
+            if self.prim.get("HasVp6").value: ext=".vp6"
+            elif self.prim.get("HasVp8").value: ext=".vp8"
             else: print("Unknown movie type")
-        except:
+        else:
             #Early version, VP6 only.
             ext=".vp6"
 
