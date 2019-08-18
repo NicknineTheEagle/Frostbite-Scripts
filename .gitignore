@@ -111,3 +111,6 @@ venv.bak/
 # Proprietary stuff
 oo2core_4_win64.dll
 oo2core_6_win64.dll
+xbcompress.exe
+xbdecompress.exe
+xbdm.dll

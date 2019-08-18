@@ -5,9 +5,9 @@ from struct import pack,unpack
 import ctypes
 import zlib
 
-liblz4 = ctypes.cdll.LoadLibrary("liblz4")
-libzstd = ctypes.cdll.LoadLibrary("libzstd")
-try: oodle = ctypes.windll.LoadLibrary("oo2core_4_win64")
+liblz4 = ctypes.cdll.LoadLibrary(r"..\thirdparty\liblz4")
+libzstd = ctypes.cdll.LoadLibrary(r"..\thirdparty\libzstd")
+try: oodle = ctypes.windll.LoadLibrary(r"..\thirdparty\oo2core_4_win64")
 except: oodle = None
 
 libzstd.ZSTD_createDDict.restype=ctypes.c_void_p

@@ -14,9 +14,6 @@ import subprocess
 #Adjust paths here.
 #do yourself a favor and don't dump into the Users folder (or it might complain about permission)
 
-#Some X360 games have some SB files compressed with X360 compression. Point this at your xbdecompress.exe so that they can be decompressed.
-xbdecompressPath=r"E:\Utilities\xbcompress\xbdecompress.exe"
-
 gameDirectory=r"E:\Games\EA\NFSTheRun"
 targetDirectory=r"E:\GameRips\NFS\NFSTR\pc\dump"
 
@@ -253,9 +250,7 @@ def dump(tocPath,baseTocPath,outPath):
 
     #Clean up.
     sb.close()
-    for tempSb in tempSbFiles:
-        os.remove(tempSb)
-    tempSbFiles.clear()
+    clearTempFiles()
 
 
 
@@ -299,7 +294,7 @@ def noncasHandlePayload(sb,offset,size,originalSize,outPath):
 
     return True
 
-tempSbFiles=list()
+tempFiles=list()
 
 def openSbFile(sbPath):
     sb=open(sbPath,"rb")
@@ -308,14 +303,19 @@ def openSbFile(sbPath):
         #X360 compressed file.
         #Decompress it into a temporary file with the tool, we'll clean it up once we're done.
         sb.close()
-        decSbPath=os.path.join(targetDirectory,os.path.basename(sbPath))
-        subprocess.call([xbdecompressPath,"/T","/Y",sbPath,decSbPath])
-        tempSbFiles.append(decSbPath)
+        decSbPath=os.path.join(targetDirectory,"temp",os.path.relpath(sbPath,gameDirectory))
+        subprocess.call([r"..\thirdparty\xbdecompress.exe","/T","/Y",sbPath,decSbPath])
+        tempFiles.append(decSbPath)
         return open(decSbPath,"rb")
 
     #Normal SB file.
     sb.seek(0)
     return sb
+
+def clearTempFiles():
+    for temp in tempFiles:
+        os.remove(temp)
+    tempFiles.clear()
 
 
 
@@ -345,6 +345,7 @@ def dumpRoot(dataDir,patchDir,outPath):
                 localPath=os.path.relpath(fname,dataDir)
                 print(localPath)
 
+                #FIXME: Patched SB format not completely figured out yet.
                 #Check if there's a patched version and extract it first.
                 #patchedName=os.path.join(patchDir,localPath)
                 #if os.path.isfile(patchedName):
