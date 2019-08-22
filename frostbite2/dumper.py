@@ -134,9 +134,9 @@ def zlibIdata(bytestring):
 
 class Delta:
     def __init__(self,sb):
-        self.size,self.type,self.offset=unpack(">IiQ",sb.read(16))
+        self.size,self.typ,self.offset=unpack(">IiQ",sb.read(16))
 
-def dump(tocPath,baseTocPath,outPath):
+def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
     toc=dbo.readToc(tocPath)
     if not (toc.get("bundles") or toc.get("chunks")): return #there's nothing to extract (the sb might not even exist)
     
@@ -200,7 +200,7 @@ def dump(tocPath,baseTocPath,outPath):
                 #Patched noncas bundle. Here goes the hilarious part. Take the patched data and glue parts from the unpatched data in between.
                 #When that is done (in memory of course) the result is a new valid bundle file that can be read like an unpatched one.
 
-                deltaSize,DELTAAAA,nulls=unpack(">IIQ",sb.read(16))
+                deltaSize,deltaMagic,padding=unpack(">IIQ",sb.read(16))
                 deltas=[]
                 for deltaEntry in range(deltaSize//16):
                     deltas.append(Delta(sb))
@@ -210,17 +210,23 @@ def dump(tocPath,baseTocPath,outPath):
 
                 unpatchedPath=baseTocPath[:-3]+"sb"
                 unpatchedSb=openSbFile(unpatchedPath)
+                commonDat=open(commonDatPath,"rb") if os.path.isfile(commonDatPath) else None
 
                 for delta in deltas:
-                    if delta.type==1:
+                    if delta.typ==1:
                         unpatchedSb.seek(delta.offset)
                         bundleStream.write(unpatchedSb.read(delta.size))
-                    elif delta.type==0:
+                    elif delta.typ==0:
                         bundleStream.write(sb.read(delta.size))
+                    elif delta.typ==-1:
+                        if not commonDat: raise Exception("Found delta type -1 without common.dat present.")
+                        commonDat.seek(delta.offset)
+                        bundleStream.write(commonDat.read(delta.size))
                     else:
-                        raise Exception("Unknown delta type %d in patched bundle at 0x%08x" % (delta.type,tocEntry.get("offset")))
+                        raise Exception("Unknown delta type %d in patched bundle at 0x%08x" % (delta.typ,tocEntry.get("offset")))
 
                 unpatchedSb.close()
+                if commonDat: commonDat.close()
                 bundleStream.seek(0)    
 
                 bundle=noncas.Bundle(bundleStream)
@@ -347,11 +353,11 @@ def dumpRoot(dataDir,patchDir,outPath):
 
                 #FIXME: Patched SB format not completely figured out yet.
                 #Check if there's a patched version and extract it first.
-                #patchedName=os.path.join(patchDir,localPath)
-                #if os.path.isfile(patchedName):
-                #    dump(patchedName,fname,outPath)
+                patchedName=os.path.join(patchDir,localPath)
+                if os.path.isfile(patchedName):
+                    dump(patchedName,outPath,fname,os.path.join(patchDir,"common.dat"))
 
-                dump(fname,None,outPath)
+                dump(fname,outPath)
 
 
 #make the paths absolute and normalize the slashes
