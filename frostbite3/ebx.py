@@ -8,15 +8,12 @@ import copy
 from struct import unpack,pack
 import shutil
 import pickle
+from dbo import Guid
 
 def unpackLE(typ,data): return unpack("<"+typ,data)
 def unpackBE(typ,data): return unpack(">"+typ,data)
 
 guidTable=dict()
-
-def formatGuid(data,bigEndian):
-    guid=Guid(data,bigEndian)
-    return guid.format()
 
 def addEbxGuid(path,ebxRoot):
     #Add EBX GUID and name to the database.
@@ -110,25 +107,6 @@ class Enumeration:
     def __init__(self):
         self.values = dict()
         self.type = 0
-class Guid:
-    def __init__(self,data,bigEndian):
-        #The first 3 elements are native endian and the last one is big endian.
-        unpacker=unpackBE if bigEndian else unpackLE
-        num1,num2,num3=unpacker("IHH",data[0:8])
-        num4=unpackBE("Q",data[8:16])[0]
-        self.val=num1,num2,num3,num4
-    def __eq__(self,other):
-        return self.__dict__==other.__dict__
-    def __ne__(self,other):
-        return self.__dict__!=other.__dict__
-    def __hash__(self):
-        return hash(self.val)
-
-    def format(self):
-        return "%08x-%04x-%04x-%04x-%012x" % (self.val[0],self.val[1],self.val[2],
-                                             (self.val[3]>>48)&0xFFFF,self.val[3]&0x0000FFFFFFFFFFFF)
-    def isNull(self):
-        return self.val==(0,0,0,0)
 class InstanceIndex: #Used for instances with no GUID
     def __init__(self,idx):
         self.idx=idx

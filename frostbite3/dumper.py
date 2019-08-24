@@ -107,13 +107,13 @@ def dump(tocPath,baseTocPath,outPath):
                 writePayload(entry,path)
 
             for entry in bundle.get("chunks"): #id sha1 size logicalOffset logicalSize chunkMeta::h32 chunkMeta::meta
-                path=os.path.join(chunkPath,ebx.formatGuid(entry.get("id"),False)+".chunk")
+                path=os.path.join(chunkPath,entry.get("id").format()+".chunk")
                 writePayload(entry,path)
 
         #Deal with the chunks which are defined directly in the toc.
         #These chunks do NOT know their originalSize.
         for entry in toc.get("chunks"): #id sha1
-            targetPath=os.path.join(chunkPathToc,ebx.formatGuid(entry.get("id"),False)+".chunk")
+            targetPath=os.path.join(chunkPathToc,entry.get("id").format()+".chunk")
             payload.casChunkPayload(entry,targetPath)
     else:
         for tocEntry in toc.get("bundles"): #id offset size, size is redundant
@@ -153,13 +153,13 @@ def dump(tocPath,baseTocPath,outPath):
                 writePayload(entry,path,sourcePath)
 
             for entry in bundle.chunks:
-                path=os.path.join(chunkPath,ebx.formatGuid(entry.id,True)+".chunk")
+                path=os.path.join(chunkPath,entry.id.format()+".chunk")
                 writePayload(entry,path,sourcePath)
 
         #Deal with the chunks which are defined directly in the toc.
         #These chunks do NOT know their originalSize.
         for entry in toc.get("chunks"): #id offset size
-            targetPath=os.path.join(chunkPathToc,ebx.formatGuid(entry.get("id"),False)+".chunk")
+            targetPath=os.path.join(chunkPathToc,entry.get("id").format()+".chunk")
             payload.noncasChunkPayload(entry,targetPath,sbPath)
 
     sb.close()

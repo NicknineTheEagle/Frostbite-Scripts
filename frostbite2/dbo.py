@@ -45,6 +45,31 @@ def unXor(path):
 
     return io.BytesIO(data)
 
+def unpackLE(typ,data): return unpack("<"+typ,data)
+def unpackBE(typ,data): return unpack(">"+typ,data)
+
+class Guid:
+    def __init__(self,data,bigEndian):
+        #The first 3 elements are native endian and the last one is big endian.
+        unpacker=unpackBE if bigEndian else unpackLE
+        num1,num2,num3=unpacker("IHH",data[0:8])
+        num4=unpackBE("Q",data[8:16])[0]
+        self.val=num1,num2,num3,num4
+    def __eq__(self,other):
+        return self.val==other.val
+    def __ne__(self,other):
+        return self.val!=other.val
+    def __hash__(self):
+        return hash(self.val)
+
+    def format(self):
+        return "%08x-%04x-%04x-%04x-%012x" % (self.val[0],self.val[1],self.val[2],
+                                             (self.val[3]>>48)&0xFFFF,self.val[3]&0x0000FFFFFFFFFFFF)
+    def isNull(self):
+        return self.val==(0,0,0,0)
+    def isChunkCompressed(self):
+        return True if self.val[3]&1 else False
+
 class DbObject:
     def __init__(self,toc,defaultVal=None): #read the data from file
         if not toc:
@@ -60,7 +85,7 @@ class DbObject:
         else:
             self.name=readNullTerminatedString(toc)
         
-        if   self.typ==0x0f: self.content=toc.read(16) #guid
+        if   self.typ==0x0f: self.content=Guid(toc.read(16),False) #guid
         elif self.typ==0x09: self.content=unpack("Q",toc.read(8))[0] #64-bit integer
         elif self.typ==0x08: self.content=unpack("I",toc.read(4))[0] #32-bit integer
         elif self.typ==0x06: self.content=True if toc.read(1)==b"\x01" else False #boolean
@@ -106,7 +131,7 @@ class DbObject:
         else:
             f.write(lvl*"\t"+name)
 
-        if   self.typ==0x0f: f.write("\t"+self.content.hex())
+        if   self.typ==0x0f: f.write("\t"+self.content.format())
         elif self.typ==0x09: f.write("\t"+str(self.content))
         elif self.typ==0x08: f.write("\t"+str(self.content))
         elif self.typ==0x06: f.write("\t"+str(self.content))

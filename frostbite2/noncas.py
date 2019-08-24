@@ -5,7 +5,7 @@ import os
 from struct import unpack,pack
 import zlib
 import dbo
-
+from dbo import Guid
 
 def readNullTerminatedString(f):
     result=b""
@@ -88,7 +88,7 @@ class BundleEntry: #3 uint32 + 1 string
 
 class Chunk:
     def __init__(self, f):
-        self.id=f.read(16)
+        self.id=Guid(f.read(16),True)
         self.rangeStart=unpack(">I",f.read(4))[0]
         self.rangeEnd=unpack(">I",f.read(4))[0] #total size of the payload is rangeEnd-rangeStart
         self.logicalOffset=unpack(">I",f.read(4))[0]

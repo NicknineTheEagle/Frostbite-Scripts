@@ -11,13 +11,13 @@ try: oodle = ctypes.windll.LoadLibrary(r"..\thirdparty\oo2core_4_win64")
 except: oodle = None
 
 libzstd.ZSTD_createDDict.restype=ctypes.c_void_p
-libzstd.ZSTD_createDDict.argtypes=[ctypes.c_void_p,ctypes.c_uint64]
+libzstd.ZSTD_createDDict.argtypes=[ctypes.c_void_p,ctypes.c_size_t]
 libzstd.ZSTD_freeDDict.argtypes=[ctypes.c_void_p]
 libzstd.ZSTD_createDCtx.restype=ctypes.c_void_p
-libzstd.ZSTD_decompress_usingDDict.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_uint64,ctypes.c_void_p]
+libzstd.ZSTD_decompress_usingDDict.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p]
 libzstd.ZSTD_freeDCtx.argtypes=[ctypes.c_void_p]
-libzstd.ZSTD_decompress.argtypes=[ctypes.c_void_p,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_uint64]
-liblz4.LZ4_decompress_safe_partial.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_uint64,ctypes.c_uint64,ctypes.c_uint64]
+libzstd.ZSTD_decompress.argtypes=[ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p,ctypes.c_size_t]
+liblz4.LZ4_decompress_safe_partial.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_int32,ctypes.c_int32,ctypes.c_int32]
 
 
 
@@ -43,7 +43,7 @@ def readBlockHeader(f):
     #8 bits: compression type
     #4 bits: always 7?
     #20 bits: compressed size
-    num1,num2=unpack(">II",f.read(8))
+    num1, num2 = unpack(">II",f.read(8))
     dictFlag=num1&0xFF000000
     uncompressedSize=num1&0x00FFFFFF
     comType=(num2&0xFF000000)>>24

@@ -3,6 +3,7 @@
 from struct import unpack,pack
 import io
 import dbo
+from dbo import Guid
 
 def readNullTerminatedString(f):
     result=b""
@@ -231,6 +232,6 @@ class BundleEntry: #ebx, res
         self.originalSize=values[1] #uncompressed size of the payload
 class Chunk:
     def __init__(self, f):
-        self.id=f.read(16)
+        self.id=Guid(f.read(16),True)
         self.rangeStart, self.logicalSize, self.logicalOffset=unpack(">HHI",f.read(8)) #not sure if rangeStart is the correct name. The order might be wrong too.
         self.originalSize=self.logicalSize+self.logicalOffset #I know this equation from the (more verbose) cas bundles
