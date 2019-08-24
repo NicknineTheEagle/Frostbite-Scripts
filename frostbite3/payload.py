@@ -10,6 +10,7 @@ libzstd = ctypes.cdll.LoadLibrary(r"..\thirdparty\libzstd")
 try: oodle = ctypes.windll.LoadLibrary(r"..\thirdparty\oo2core_4_win64")
 except: oodle = None
 
+liblz4.LZ4_decompress_safe_partial.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_int32,ctypes.c_int32,ctypes.c_int32]
 libzstd.ZSTD_createDDict.restype=ctypes.c_void_p
 libzstd.ZSTD_createDDict.argtypes=[ctypes.c_void_p,ctypes.c_size_t]
 libzstd.ZSTD_freeDDict.argtypes=[ctypes.c_void_p]
@@ -17,7 +18,10 @@ libzstd.ZSTD_createDCtx.restype=ctypes.c_void_p
 libzstd.ZSTD_decompress_usingDDict.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p]
 libzstd.ZSTD_freeDCtx.argtypes=[ctypes.c_void_p]
 libzstd.ZSTD_decompress.argtypes=[ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p,ctypes.c_size_t]
-liblz4.LZ4_decompress_safe_partial.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_int32,ctypes.c_int32,ctypes.c_int32]
+oodle.OodleLZ_Decompress.argtypes=[ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p,ctypes.c_size_t,
+                                  ctypes.c_int,ctypes.c_int,ctypes.c_int,
+                                  ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int,
+                                  ctypes.c_int]
 
 
 
@@ -177,18 +181,18 @@ def decompressPatchedPayload(basePath,baseOffset,deltaPath,deltaOffset,deltaSize
     f2.close()
 
 #for each bundle, the dump script selects one of these six functions
-def casPayload(bundleEntry, targetPath):
+def casPayload(bundleEntry,targetPath,originalSize):
     if os.path.isfile(lp(targetPath)): return False
 
     #Some files may be from localizations user doesn't have installed.
     try:
         catEntry=cas.catDict[bundleEntry.get("sha1")]
-        decompressPayload(catEntry.path,catEntry.offset,catEntry.size,bundleEntry.get("originalSize"),targetPath)
+        decompressPayload(catEntry.path,catEntry.offset,catEntry.size,originalSize,targetPath)
         return True
     except:
         return False
 
-def casPatchedPayload(bundleEntry, targetPath):
+def casPatchedPayload(bundleEntry,targetPath,originalSize):
     if os.path.isfile(lp(targetPath)): return False
 
     if bundleEntry.get("casPatchType")==2:
@@ -196,10 +200,10 @@ def casPatchedPayload(bundleEntry, targetPath):
         catBase=cas.catDict[bundleEntry.get("baseSha1")]
         decompressPatchedPayload(catBase.path,catBase.offset,
                                  catDelta.path,catDelta.offset,catDelta.size,
-                                 bundleEntry.get("originalSize"),targetPath)
+                                 originalSize,targetPath)
         return True
     else:
-        return casPayload(bundleEntry, targetPath) #if casPatchType is not 2, use the unpatched function.
+        return casPayload(bundleEntry, targetPath,originalSize) #if casPatchType is not 2, use the unpatched function.
 
 def casChunkPayload(entry,targetPath):
     if os.path.isfile(lp(targetPath)): return False
@@ -212,12 +216,12 @@ def casChunkPayload(entry,targetPath):
     except:
         return False
 
-def noncasPayload(entry, targetPath, sourcePath):
+def noncasPayload(entry,targetPath,sourcePath):
     if os.path.isfile(lp(targetPath)): return False
     decompressPayload(sourcePath,entry.offset,entry.size,entry.originalSize,targetPath)
     return True
 
-def noncasPatchedPayload(entry, targetPath, sourcePath):
+def noncasPatchedPayload(entry,targetPath,sourcePath):
     if os.path.isfile(lp(targetPath)): return False
     decompressPatchedPayload(sourcePath[0], entry.baseOffset,#entry.baseSize,
                             sourcePath[1], entry.deltaOffset, entry.deltaSize,
@@ -225,7 +229,7 @@ def noncasPatchedPayload(entry, targetPath, sourcePath):
                             entry.midInstructionType, entry.midInstructionSize)
     return True
 
-def noncasChunkPayload(entry, targetPath, sourcePath):
+def noncasChunkPayload(entry,targetPath,sourcePath):
     if os.path.isfile(lp(targetPath)): return False
     decompressPayload(sourcePath,entry.get("offset"),entry.get("size"),None,targetPath)
     return True

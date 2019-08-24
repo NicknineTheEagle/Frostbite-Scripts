@@ -230,9 +230,9 @@ class Dbx:
         self.trueFilename=""
         self.header=Header(self.unpack("3I6H3I",f.read(36)))
         self.arraySectionstart=self.header.absStringOffset+self.header.lenString+self.header.lenPayload
-        self.fileGUID=Guid(f.read(16),self.bigEndian)
+        self.fileGUID=Guid(f,self.bigEndian)
         while f.tell()%16!=0: f.seek(1,1) #padding
-        self.externalGUIDs=[(Guid(f.read(16),self.bigEndian),Guid(f.read(16),self.bigEndian)) for i in range(self.header.numGUID)]
+        self.externalGUIDs=[(Guid(f,self.bigEndian),Guid(f,self.bigEndian)) for i in range(self.header.numGUID)]
         self.keywords=str.split(f.read(self.header.lenName).decode(),"\0")
         self.keywordDict=dict((hasher(keyword),keyword) for keyword in self.keywords)
         self.fieldDescriptors=[FieldDescriptor(self.unpack("IHHii",f.read(16)), self.keywordDict,self.version) for i in range(self.header.numField)]
@@ -256,7 +256,7 @@ class Dbx:
 
                 #all instances after numGUIDRepeater have no guid
                 if i<self.header.numGUIDRepeater:
-                    instanceGUID=Guid(f.read(16),self.bigEndian)
+                    instanceGUID=Guid(f,self.bigEndian)
                 else:
                     #just numerate those instances without guid and assign an int to them.
                     instanceGUID=InstanceIndex(nonGUIDindex)
@@ -426,7 +426,7 @@ class Dbx:
 
         elif typ==FieldType.GUID:
             # Guid
-            field.value=Guid(f.read(16),self.bigEndian)
+            field.value=Guid(f,self.bigEndian)
 
         elif typ==FieldType.SHA1:
             # SHA1

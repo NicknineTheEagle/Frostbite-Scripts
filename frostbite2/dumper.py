@@ -14,8 +14,8 @@ import subprocess
 #Adjust paths here.
 #do yourself a favor and don't dump into the Users folder (or it might complain about permission)
 
-gameDirectory=r"E:\Games\EA\NFSTheRun"
-targetDirectory=r"E:\GameRips\NFS\NFSTR\pc\dump"
+gameDirectory   = r"D:\Games\OriginGames\Need for Speed The Run"
+targetDirectory = r"E:\GameRips\NFS\NFSTR\pc\dump"
 
 #####################################
 #####################################
@@ -59,10 +59,6 @@ def lp(path): #long pathnames
 
 
 
-class Delta:
-    def __init__(self,sb):
-        self.size,self.typ,self.offset=unpack(">IiQ",sb.read(16))
-
 def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
     toc=dbo.readToc(tocPath)
     if not (toc.get("bundles") or toc.get("chunks")): return #there's nothing to extract (the sb might not even exist)
@@ -83,17 +79,12 @@ def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
             sb.seek(tocEntry.get("offset"))
             bundle=dbo.DbObject(sb)
 
-            #make empty lists for every type to get rid of key errors(=> less indendation)
-            for listType in ("ebx","dbx","res","chunks"):
-                if bundle.get(listType)==None:
-                    bundle.set(listType,list())
-
-            for entry in bundle.get("ebx"): #name sha1 size originalSize
+            for entry in bundle.get("ebx",list()): #name sha1 size originalSize
                 path=os.path.join(ebxPath,entry.get("name")+".ebx")
                 if casPayload(entry,path):
                     ebx.addEbxGuid(path,ebxPath)
 
-            for entry in bundle.get("dbx"): #name sha1 size originalSize
+            for entry in bundle.get("dbx",list()): #name sha1 size originalSize
                 if entry.get("idata"): #dbx appear only idata if at all, they are probably deprecated and were not meant to be shipped at all.
                     path=os.path.join(dbxPath,entry.get("name")+".dbx")
                     out=open2(path,"wb")
@@ -103,11 +94,11 @@ def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
                         out.write(zlibIdata(entry.get("idata")))
                     out.close()
 
-            for entry in bundle.get("res"): #name sha1 size originalSize resType resMeta
+            for entry in bundle.get("res",list()): #name sha1 size originalSize resType resMeta
                 path=os.path.join(resPath,entry.get("name")+".res")
                 casPayload(entry,path)
 
-            for entry in bundle.get("chunks"): #id sha1 size chunkMeta::h32 chunkMeta::meta
+            for entry in bundle.get("chunks",list()): #id sha1 size chunkMeta::h32 chunkMeta::meta
                 path=os.path.join(chunkPath,entry.get("id").format()+".chunk")
                 casChunkPayload(entry,path)
 
@@ -128,15 +119,17 @@ def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
                 #When that is done (in memory of course) the result is a new valid bundle file that can be read like an unpatched one.
 
                 deltaSize,deltaMagic,padding=unpack(">IIQ",sb.read(16))
-                deltas=[]
+
+                class Delta:
+                    def __init__(self,sb):
+                        self.size,self.typ,self.offset=unpack(">IiQ",sb.read(16))
+
+                deltas=list()
                 for deltaEntry in range(deltaSize//16):
                     deltas.append(Delta(sb))
 
                 bundleStream=io.BytesIO() #here be the new bundle data
-                patchedOffset=sb.tell()
-
-                unpatchedPath=baseTocPath[:-3]+"sb"
-                unpatchedSb=openSbFile(unpatchedPath)
+                unpatchedSb=openSbFile(baseTocPath[:-3]+"sb")
                 commonDat=open(commonDatPath,"rb") if os.path.isfile(commonDatPath) else None
 
                 for delta in deltas:
@@ -154,7 +147,7 @@ def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
 
                 unpatchedSb.close()
                 if commonDat: commonDat.close()
-                bundleStream.seek(0)    
+                bundleStream.seek(0)
 
                 bundle=noncas.Bundle(bundleStream)
                 sb2=bundleStream           
@@ -329,6 +322,9 @@ def readCat(catDict, catPath):
         catDict[catEntry.sha1]=catEntry
 
 def dumpRoot(dataDir,patchDir,outPath):
+    if not os.path.isdir(outPath): os.makedirs(outPath)
+    commonDatPath=os.path.join(patchDir,"common.dat")
+
     for dir0, dirs, ff in os.walk(dataDir):
         for fname in ff:
             if fname[-4:]==".toc":
@@ -339,7 +335,7 @@ def dumpRoot(dataDir,patchDir,outPath):
                 #Check if there's a patched version and extract it first.
                 patchedName=os.path.join(patchDir,localPath)
                 if os.path.isfile(patchedName):
-                    dump(patchedName,outPath,fname,os.path.join(patchDir,"common.dat"))
+                    dump(patchedName,outPath,fname,commonDatPath)
 
                 dump(fname,outPath)
 

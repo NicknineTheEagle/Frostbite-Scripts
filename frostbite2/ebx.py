@@ -196,8 +196,8 @@ class Dbx:
         self.trueFilename=""
         self.header=Header(self.unpack("11I",f.read(44)))
         self.arraySectionstart=self.header.absStringOffset+self.header.lenString+self.header.lenPayload
-        self.fileGUID, self.primaryInstanceGUID = Guid(f.read(16),self.bigEndian), Guid(f.read(16),self.bigEndian)
-        self.externalGUIDs=[(Guid(f.read(16),self.bigEndian),Guid(f.read(16),self.bigEndian)) for i in range(self.header.numGUID)]
+        self.fileGUID, self.primaryInstanceGUID = Guid(f,self.bigEndian), Guid(f,self.bigEndian)
+        self.externalGUIDs=[(Guid(f,self.bigEndian),Guid(f,self.bigEndian)) for i in range(self.header.numGUID)]
         self.keywords=str.split(f.read(self.header.lenName).decode(),"\0")
         self.keywordDict=dict((hasher(keyword),keyword) for keyword in self.keywords)
         self.fieldDescriptors=[FieldDescriptor(self.unpack("IHHII",f.read(16)), self.keywordDict) for i in range(self.header.numField)]
@@ -213,7 +213,7 @@ class Dbx:
         self.instances=[] # (guid, complex)
         for instanceRepeater in self.instanceRepeaters:
             for repetition in range(instanceRepeater.repetitions):
-                instanceGUID=Guid(f.read(16),self.bigEndian)
+                instanceGUID=Guid(f,self.bigEndian)
                 self.internalGUIDs.append(instanceGUID)
                 if instanceGUID==self.primaryInstanceGUID:
                     self.isPrimaryInstance=True
@@ -376,7 +376,7 @@ class Dbx:
 
         elif typ==FieldType.GUID:
             # Guid
-            field.value=Guid(f.read(16),self.bigEndian)
+            field.value=Guid(f,self.bigEndian)
 
         elif typ==FieldType.SHA1:
             # SHA1

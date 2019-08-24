@@ -13,7 +13,7 @@ from struct import pack,unpack
 #Adjust paths here.
 #do yourself a favor and don't dump into the Users folder (or it might complain about permission)
 
-gameDirectory   = r"E:\Games\EA\NFSRivals"
+gameDirectory   = r"D:\Games\OriginGames\Need for Speed(TM) Rivals"
 targetDirectory = r"E:\GameRips\NFS\NFSR\pc\dump"
 
 #####################################
@@ -80,16 +80,6 @@ def dump(tocPath,baseTocPath,outPath):
 
             sb.seek(tocEntry.get("offset"))
             bundle=dbo.DbObject(sb)
-
-            #make empty lists for every type to get rid of key errors(=> less indendation)
-            for listType in ("ebx","res","chunks"):
-                if bundle.get(listType)==None:
-                    bundle.set(listType,list())
-                    
-            #The noncas chunks already have originalSize calculated in Bundle.py (it was necessary to seek through the entries).
-            #Calculate it for the cas chunks too. From here on, both cas and noncas ebx/res/chunks (within bundles) have size and originalSize.
-            for chunk in bundle.get("chunks"):
-                chunk.set("originalSize",chunk.get("logicalOffset")+chunk.get("logicalSize"))
                     
             #pick the right function
             if tocEntry.get("delta"):
@@ -97,18 +87,18 @@ def dump(tocPath,baseTocPath,outPath):
             else:
                 writePayload=payload.casPayload
 
-            for entry in bundle.get("ebx"): #name sha1 size originalSize
+            for entry in bundle.get("ebx",list()): #name sha1 size originalSize
                 path=os.path.join(ebxPath,entry.get("name")+".ebx")
-                if writePayload(entry,path):
+                if writePayload(entry,path,entry.get("originalSize")):
                     ebx.addEbxGuid(path,ebxPath)
 
-            for entry in bundle.get("res"): #name sha1 size originalSize resRid resType resMeta
+            for entry in bundle.get("res",list()): #name sha1 size originalSize resRid resType resMeta
                 path=os.path.join(resPath,entry.get("name")+".res")
-                writePayload(entry,path)
+                writePayload(entry,path,entry.get("originalSize"))
 
-            for entry in bundle.get("chunks"): #id sha1 size logicalOffset logicalSize chunkMeta::h32 chunkMeta::meta
+            for entry in bundle.get("chunks",list()): #id sha1 size logicalOffset logicalSize chunkMeta::h32 chunkMeta::meta
                 path=os.path.join(chunkPath,entry.get("id").format()+".chunk")
-                writePayload(entry,path)
+                writePayload(entry,path,entry.get("logicalOffset")+entry.get("logicalSize"))
 
         #Deal with the chunks which are defined directly in the toc.
         #These chunks do NOT know their originalSize.
@@ -167,6 +157,8 @@ def dump(tocPath,baseTocPath,outPath):
 
 
 def dumpRoot(dataDir,patchDir,outPath):
+    if not os.path.isdir(outPath): os.makedirs(outPath)
+
     for dir0, dirs, ff in os.walk(dataDir):
         for fname in ff:
             if fname[-4:]==".toc":
@@ -205,7 +197,7 @@ payload.zstdInit()
 #Load layout.toc
 tocLayout=dbo.readToc(os.path.join(gameDirectory,"Data","layout.toc"))
 
-if not tocLayout.getSubEntry("installManifest"):
+if not tocLayout.getSubObject("installManifest"):
     if not os.path.isfile(os.path.join(gameDirectory,"Data","das.dal")):
         #Old layout similar to Frostbite 2 with a single cas.cat.
         #Can also be non-cas.
@@ -258,7 +250,7 @@ else:
     patchDir=os.path.join(gameDirectory,"Patch")
 
     #Detect cat version.
-    if tocLayout.getSubEntry("installManifest").get("maxTotalSize")!=None:
+    if tocLayout.getSubObject("installManifest").get("maxTotalSize")!=None:
         readCat=cas.readCat2
     else:
         readCat=cas.readCat3

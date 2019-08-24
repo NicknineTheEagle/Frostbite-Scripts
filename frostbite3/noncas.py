@@ -1,9 +1,8 @@
-#This is a parser for non-cas bundles.
+#Non-cas bundles are handled here.
 #Unlike toc files these are always big endian.
 from struct import unpack,pack
 import io
 import dbo
-from dbo import Guid
 
 def readNullTerminatedString(f):
     result=b""
@@ -201,8 +200,8 @@ class Bundle: #noncas, read metadata only and seek to the start of the payload s
         #chunkMeta. There is one chunkMeta entry for every chunk (i.e. self.chunks and self.chunkMeta both have the same number of elements).
         if self.header.chunkCount>0: self.chunkMeta=dbo.DbObject(f)
         for i in range(self.header.chunkCount):
-            self.chunks[i].meta=self.chunkMeta.content[i].elems["meta"].elems
-            self.chunks[i].h32=self.chunkMeta.content[i].elems["h32"].content
+            self.chunks[i].meta=self.chunkMeta.content[i].getSubObject("meta")
+            self.chunks[i].h32=self.chunkMeta.content[i].get("h32")
 
         #ebx and res have a filename (chunks only have a 16 byte id)
         absStringOffset=metaOffset+self.header.stringOffset
@@ -232,6 +231,6 @@ class BundleEntry: #ebx, res
         self.originalSize=values[1] #uncompressed size of the payload
 class Chunk:
     def __init__(self, f):
-        self.id=Guid(f.read(16),True)
+        self.id=dbo.Guid(f,True)
         self.rangeStart, self.logicalSize, self.logicalOffset=unpack(">HHI",f.read(8)) #not sure if rangeStart is the correct name. The order might be wrong too.
         self.originalSize=self.logicalSize+self.logicalOffset #I know this equation from the (more verbose) cas bundles

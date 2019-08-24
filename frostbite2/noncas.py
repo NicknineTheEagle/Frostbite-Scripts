@@ -1,11 +1,10 @@
-#This is a parser for non-cas bundles.
+#Non-cas bundles are handled here.
 #Unlike toc files these are always big endian.
 import sys
 import os
 from struct import unpack,pack
 import zlib
 import dbo
-from dbo import Guid
 
 def readNullTerminatedString(f):
     result=b""
@@ -48,7 +47,7 @@ class Bundle:
         #meta for textures usually contains firstMip 0/1/2.
         if self.header.numChunks>0: self.chunkMeta=dbo.DbObject(f)
         for i in range(self.header.numChunks):
-            self.chunkEntries[i].meta=self.chunkMeta.content[i].get("meta")
+            self.chunkEntries[i].meta=self.chunkMeta.content[i].getSubObject("meta")
             self.chunkEntries[i].h32=self.chunkMeta.content[i].get("h32")
         
         for entry in self.ebxEntries + self.resEntries: #ebx and res have a path and not just a guid
@@ -88,7 +87,7 @@ class BundleEntry: #3 uint32 + 1 string
 
 class Chunk:
     def __init__(self, f):
-        self.id=Guid(f.read(16),True)
+        self.id=dbo.Guid(f,True)
         self.rangeStart=unpack(">I",f.read(4))[0]
         self.rangeEnd=unpack(">I",f.read(4))[0] #total size of the payload is rangeEnd-rangeStart
         self.logicalOffset=unpack(">I",f.read(4))[0]
