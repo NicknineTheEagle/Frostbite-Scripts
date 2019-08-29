@@ -9,7 +9,6 @@ There is one folder for each Frostbite version:
  * frostbite3
    * Frostbite Engine 3 (2013-present) - Battlefield 4, Need for Speed: Rivals, ...
    * Newest games from 2018 and later (Star Wars: Battlefront II, Battlefield V, FIFA 19, Anthem) are not supported yet.
-   * Mass Effect: Andromeda is not supported yet since its TOC files are encrypted.
    
 IMPORTANT! Some games require proprietary libraries that I can't distribute here. You'll need to get them youself if you want to extract those games:
  * Some X360 games use X360 compression on some SB files. Find Xbox 360 File Decompression Tool (xbdecompress.exe) and put it into thirdparty directory.

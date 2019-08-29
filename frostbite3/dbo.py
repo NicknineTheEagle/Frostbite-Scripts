@@ -11,6 +11,9 @@ def unXor(path):
     As toc files are ~300 kB at most, make a memory stream even if the file wasn't encrypted in the first place (to get rid of the physical file handle)."""
     
     f=open(path,"rb")
+    if path[-4:]==".toc":
+        f=unXorMEA(f) #Detect and decrypt Mass Effect: Andromeda.
+
     magic=f.read(4)
     if magic in (b"\x00\xD1\xCE\x00"): #the file is XOR encrypted and has a signature
         f.seek(296) #skip the signature
@@ -29,6 +32,32 @@ def unXor(path):
     f.close()
 
     return io.BytesIO(data)
+
+def unXorMEA(f):
+    f.seek(0,2)
+    size=f.tell()
+    f.seek(-32,2)
+    signature=f.read(32)
+    if signature!=b"@e!adnXd$^!rfOsrDyIrI!xVgHeA!6Vc":
+        f.seek(0)
+        return f
+
+    #Mass Effect: Andromeda uses custom encryption on TOC files.
+    f.seek(-36,2)
+    headerSize=unpackLE("I",f.read(4))[0]
+    f.seek(0)
+    encryptedData=f.read(size-headerSize)
+    dataLen=len(encryptedData)
+    data=bytearray(dataLen)
+    key=encryptedData[0]
+    for i in range(dataLen):
+        data[i]=encryptedData[i]^key
+        key=((encryptedData[0]^encryptedData[i])-(i%256))&0xFF
+
+    f.close()
+    return io.BytesIO(data)
+
+
 
 def decode7bit(f):
     """Reads the next few bytes in a file as LEB128/7bit encoding and returns an integer"""
