@@ -71,39 +71,29 @@ def dump(tocPath,outPath):
     if not toc.get("das"): raise Exception("Non-DAS superbundle found in NFS: Edge.")
 
     bundles=toc.getSubEntry("bundles") #names offsets sizes (list sizes should be same)
-    numBundles=len(bundles.get("offsets"))
+    offsets=bundles.get("offsets")
 
-    for i in range(numBundles):
-        sb.seek(bundles.get("offsets")[i].content)
+    for offset in offsets:
+        sb.seek(offset.content)
         bundle=dbo.DbObject(sb)
 
-        #make empty lists for every type to get rid of key errors(=> less indendation)
-        for listType in ("ebx","res","chunks"):
-            if bundle.get(listType)==None:
-                bundle.set(listType,list())
-
-        #The noncas chunks already have originalSize calculated in Bundle.py (it was necessary to seek through the entries).
-        #Calculate it for the cas chunks too. From here on, both cas and noncas ebx/res/chunks (within bundles) have size and originalSize.
-        for chunk in bundle.get("chunks"):
-            chunk.set("originalSize",chunk.get("logicalOffset")+chunk.get("logicalSize"))
-
-        for entry in bundle.get("ebx"): #name sha1 size originalSize
+        for entry in bundle.get("ebx",list()): #name sha1 size originalSize
             path=os.path.join(ebxPath,entry.get("name")+".ebx")
-            if payload.casPayload(entry,path):
+            if payload.casPayload(entry,path,entry.get("originalSize")):
                 ebx.addEbxGuid(path,ebxPath)
 
-        for entry in bundle.get("res"): #name sha1 size originalSize resRid resType resMeta
+        for entry in bundle.get("res",list()): #name sha1 size originalSize resRid resType resMeta
             path=os.path.join(resPath,entry.get("name")+".res")
-            payload.casPayload(entry,path)
+            payload.casPayload(entry,path,entry.get("originalSize"))
 
-        for entry in bundle.get("chunks"): #id sha1 size logicalOffset logicalSize chunkMeta::meta
-            path=os.path.join(chunkPath,ebx.formatGuid(entry.get("id"),False)+".chunk")
-            payload.casPayload(entry,path)
+        for entry in bundle.get("chunks",list()): #id sha1 size logicalOffset logicalSize chunkMeta::meta
+            path=os.path.join(chunkPath,entry.get("id").format()+".chunk")
+            payload.casPayload(entry,path,entry.get("logicalOffset")+entry.get("logicalSize"))
 
     #Deal with the chunks which are defined directly in the toc.
     #These chunks do NOT know their originalSize.
     for entry in toc.get("chunks"): #id sha1
-        targetPath=os.path.join(chunkPathToc,ebx.formatGuid(entry.get("id"),False)+".chunk")
+        targetPath=os.path.join(chunkPathToc,entry.get("id").format()+".chunk")
         payload.casChunkPayload(entry,targetPath)
 
     sb.close()
