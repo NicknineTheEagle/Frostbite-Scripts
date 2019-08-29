@@ -91,7 +91,7 @@ class Matrix4x4:
     def __init__(self,f):
         self.vecs=list()
         for i in range(4):
-            self.vecs[i]=Vector4D(f)
+            self.vecs.append(Vector4D(f))
 
 class DbTimespan:
     def __init__(self,f):
