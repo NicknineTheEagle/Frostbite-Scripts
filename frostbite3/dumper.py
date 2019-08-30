@@ -83,22 +83,22 @@ def dump(tocPath,baseTocPath,outPath):
                     
             #pick the right function
             if tocEntry.get("delta"):
-                writePayload=payload.casPatchedPayload
+                writePayload=payload.casPatchedBundlePayload
             else:
-                writePayload=payload.casPayload
+                writePayload=payload.casBundlePayload
 
             for entry in bundle.get("ebx",list()): #name sha1 size originalSize
                 path=os.path.join(ebxPath,entry.get("name")+".ebx")
-                if writePayload(entry,path,entry.get("originalSize")):
+                if writePayload(entry,path,False):
                     ebx.addEbxGuid(path,ebxPath)
 
             for entry in bundle.get("res",list()): #name sha1 size originalSize resRid resType resMeta
                 path=os.path.join(resPath,entry.get("name")+".res")
-                writePayload(entry,path,entry.get("originalSize"))
+                writePayload(entry,path,False)
 
             for entry in bundle.get("chunks",list()): #id sha1 size logicalOffset logicalSize chunkMeta::h32 chunkMeta::meta
                 path=os.path.join(chunkPath,entry.get("id").format()+".chunk")
-                writePayload(entry,path,entry.get("logicalOffset")+entry.get("logicalSize"))
+                writePayload(entry,path,True)
 
         #Deal with the chunks which are defined directly in the toc.
         #These chunks do NOT know their originalSize.
@@ -126,11 +126,11 @@ def dump(tocPath,baseTocPath,outPath):
                 base.seek(baseTocEntry.get("offset"))
                 bundle=noncas.patchedBundle(base, sb) #create a patched bundle using base and delta
                 base.close()
-                writePayload=payload.noncasPatchedPayload
+                writePayload=payload.noncasPatchedBundlePayload
                 sourcePath=[basePath,sbPath] #base, delta
             else:
                 bundle=noncas.unpatchedBundle(sb)
-                writePayload=payload.noncasPayload
+                writePayload=payload.noncasBundlePayload
                 sourcePath=sbPath
 
             for entry in bundle.ebx:

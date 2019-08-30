@@ -181,47 +181,59 @@ def decompressPatchedPayload(basePath,baseOffset,deltaPath,deltaOffset,deltaSize
     f2.close()
 
 #for each bundle, the dump script selects one of these six functions
-def casPayload(bundleEntry,targetPath,originalSize):
+def casBundlePayload(entry,targetPath,isChunk):
     if os.path.isfile(lp(targetPath)): return False
 
     #Some files may be from localizations user doesn't have installed.
-    try:
-        catEntry=cas.catDict[bundleEntry.get("sha1")]
+    sha1=entry.get("sha1")
+    if sha1 in cas.catDict:
+        if isChunk:
+            originalSize=entry.get("logicalOffset")+entry.get("logicalSize")
+        else:
+            originalSize=entry.get("originalSize")
+
+        catEntry=cas.catDict[sha1]
         decompressPayload(catEntry.path,catEntry.offset,catEntry.size,originalSize,targetPath)
         return True
-    except:
+    else:
         return False
 
-def casPatchedPayload(bundleEntry,targetPath,originalSize):
+def casPatchedBundlePayload(entry,targetPath,isChunk):
     if os.path.isfile(lp(targetPath)): return False
 
-    if bundleEntry.get("casPatchType")==2:
-        catDelta=cas.catDict[bundleEntry.get("deltaSha1")]
-        catBase=cas.catDict[bundleEntry.get("baseSha1")]
+    if entry.get("casPatchType")==2:
+        if isChunk:
+            originalSize=entry.get("logicalOffset")+entry.get("logicalSize")
+        else:
+            originalSize=entry.get("originalSize")
+
+        catDelta=cas.catDict[entry.get("deltaSha1")]
+        catBase=cas.catDict[entry.get("baseSha1")]
         decompressPatchedPayload(catBase.path,catBase.offset,
                                  catDelta.path,catDelta.offset,catDelta.size,
                                  originalSize,targetPath)
         return True
     else:
-        return casPayload(bundleEntry, targetPath,originalSize) #if casPatchType is not 2, use the unpatched function.
+        return casBundlePayload(entry, targetPath,isChunk) #if casPatchType is not 2, use the unpatched function.
 
 def casChunkPayload(entry,targetPath):
     if os.path.isfile(lp(targetPath)): return False
 
     #Some files may be from localizations user doesn't have installed.
-    try:
+    sha1=entry.get("sha1")
+    if sha1 in cas.catDict:
         catEntry=cas.catDict[entry.get("sha1")]
         decompressPayload(catEntry.path,catEntry.offset,catEntry.size,None,targetPath)
         return True
-    except:
+    else:
         return False
 
-def noncasPayload(entry,targetPath,sourcePath):
+def noncasBundlePayload(entry,targetPath,sourcePath):
     if os.path.isfile(lp(targetPath)): return False
     decompressPayload(sourcePath,entry.offset,entry.size,entry.originalSize,targetPath)
     return True
 
-def noncasPatchedPayload(entry,targetPath,sourcePath):
+def noncasPatchedBundlePayload(entry,targetPath,sourcePath):
     if os.path.isfile(lp(targetPath)): return False
     decompressPatchedPayload(sourcePath[0], entry.baseOffset,#entry.baseSize,
                             sourcePath[1], entry.deltaOffset, entry.deltaSize,

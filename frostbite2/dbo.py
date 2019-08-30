@@ -9,7 +9,7 @@ def unXor(path):
     """Take a filename (usually toc or cat), decrypt the file if necessary, close it and return the unencrypted data in a memory stream.
 
     As toc files are ~300 kB at most, make a memory stream even if the file wasn't encrypted in the first place (to get rid of the physical file handle)."""
-    
+
     f=open(path,"rb")
     magic=f.read(4)
     if magic in (b"\x00\xD1\xCE\x00",b"\x00\xD1\xCE\x01"): #the file is XOR encrypted and has a signature

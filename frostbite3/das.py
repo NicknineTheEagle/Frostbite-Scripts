@@ -79,16 +79,16 @@ def dump(tocPath,outPath):
 
         for entry in bundle.get("ebx",list()): #name sha1 size originalSize
             path=os.path.join(ebxPath,entry.get("name")+".ebx")
-            if payload.casPayload(entry,path,entry.get("originalSize")):
+            if payload.casBundlePayload(entry,path,entry.get("originalSize")):
                 ebx.addEbxGuid(path,ebxPath)
 
         for entry in bundle.get("res",list()): #name sha1 size originalSize resRid resType resMeta
             path=os.path.join(resPath,entry.get("name")+".res")
-            payload.casPayload(entry,path,entry.get("originalSize"))
+            payload.casBundlePayload(entry,path,entry.get("originalSize"))
 
         for entry in bundle.get("chunks",list()): #id sha1 size logicalOffset logicalSize chunkMeta::meta
             path=os.path.join(chunkPath,entry.get("id").format()+".chunk")
-            payload.casPayload(entry,path,entry.get("logicalOffset")+entry.get("logicalSize"))
+            payload.casBundlePayload(entry,path,entry.get("logicalOffset")+entry.get("logicalSize"))
 
     #Deal with the chunks which are defined directly in the toc.
     #These chunks do NOT know their originalSize.

@@ -62,26 +62,26 @@ def lp(path): #long pathnames
 def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
     toc=dbo.readToc(tocPath)
     if not (toc.get("bundles") or toc.get("chunks")): return #there's nothing to extract (the sb might not even exist)
-    
+
     sbPath=tocPath[:-3]+"sb"
     sb=openSbFile(sbPath)
 
     chunkPathToc=os.path.join(outPath,"chunks")
     bundlePath=os.path.join(outPath,"bundles")
     ebxPath=os.path.join(bundlePath,"ebx")
-    dbxPath=os.path.join(bundlePath,"dbx") 
+    dbxPath=os.path.join(bundlePath,"dbx")
     resPath=os.path.join(bundlePath,"res")
     chunkPath=os.path.join(bundlePath,"chunks")
-    
+
     if toc.get("cas"):
-        #deal with cas bundles => ebx, dbx, res, chunks. 
+        #deal with cas bundles => ebx, dbx, res, chunks.
         for tocEntry in toc.get("bundles"): #id offset size, size is redundant
             sb.seek(tocEntry.get("offset"))
             bundle=dbo.DbObject(sb)
 
             for entry in bundle.get("ebx",list()): #name sha1 size originalSize
                 path=os.path.join(ebxPath,entry.get("name")+".ebx")
-                if casPayload(entry,path):
+                if casBundlePayload(entry,path,False):
                     ebx.addEbxGuid(path,ebxPath)
 
             for entry in bundle.get("dbx",list()): #name sha1 size originalSize
@@ -90,17 +90,17 @@ def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
                     out=open2(path,"wb")
                     if entry.get("size")==entry.get("originalSize"):
                         out.write(entry.get("idata"))
-                    else:          
+                    else:
                         out.write(zlibIdata(entry.get("idata")))
                     out.close()
 
             for entry in bundle.get("res",list()): #name sha1 size originalSize resType resMeta
                 path=os.path.join(resPath,entry.get("name")+".res")
-                casPayload(entry,path)
+                casBundlePayload(entry,path,False)
 
             for entry in bundle.get("chunks",list()): #id sha1 size chunkMeta::h32 chunkMeta::meta
                 path=os.path.join(chunkPath,entry.get("id").format()+".chunk")
-                casChunkPayload(entry,path)
+                casBundlePayload(entry,path,True)
 
         #deal with cas chunks defined in the toc.
         for entry in toc.get("chunks"): #id sha1
@@ -109,11 +109,11 @@ def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
 
     else:
         #deal with noncas bundles
-        for tocEntry in toc.get("bundles"): #id offset size, size is redundant         
+        for tocEntry in toc.get("bundles"): #id offset size, size is redundant
             if tocEntry.get("base"): continue #Patched noncas bundle. However, use the unpatched bundle because no file was patched at all.
 
             sb.seek(tocEntry.get("offset"))
-            
+
             if tocEntry.get("delta"):
                 #Patched noncas bundle. Here goes the hilarious part. Take the patched data and glue parts from the unpatched data in between.
                 #When that is done (in memory of course) the result is a new valid bundle file that can be read like an unpatched one.
@@ -150,29 +150,29 @@ def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
                 bundleStream.seek(0)
 
                 bundle=noncas.Bundle(bundleStream)
-                sb2=bundleStream           
+                sb2=bundleStream
             else:
                 bundle=noncas.Bundle(sb)
                 sb2=sb
 
             for entry in bundle.ebxEntries:
                 path=os.path.join(ebxPath,entry.name+".ebx")
-                if noncasPayload(sb2,entry.offset,entry.size,entry.originalSize,path):
+                if noncasBundlePayload(sb2,entry,path):
                     ebx.addEbxGuid(path,ebxPath)
 
             for entry in bundle.resEntries:
                 originalSize=entry.originalSize
                 path=os.path.join(resPath,entry.name+".res")
-                noncasPayload(sb2,entry.offset,entry.size,entry.originalSize,path)
+                noncasBundlePayload(sb2,entry,path)
 
             for entry in bundle.chunkEntries:
                 path=os.path.join(chunkPath,entry.id.format()+".chunk")
-                noncasChunkPayload(sb2,entry.id,entry.offset,entry.size,path)
+                noncasBundlePayload(sb2,entry,path)
 
         #deal with noncas chunks defined in the toc
         for entry in toc.get("chunks"): #id offset size
             path=os.path.join(chunkPathToc,entry.get("id").format()+".chunk")
-            noncasChunkPayload(sb,entry.get("id"),entry.get("offset"),entry.get("size"),path)
+            noncasChunkPayload(sb,entry,path)
 
     #Clean up.
     sb.close()
@@ -180,21 +180,23 @@ def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
 
 
 
-def casPayload(entry,outPath):
+def casBundlePayload(entry,outPath,isChunk):
     if os.path.isfile(lp(outPath)): return False
 
-    compressed=True if entry.get("size")!=entry.get("originalSize") else False #I cannot tell for certain if this is correct. I do not have any negative results though.
+    if isChunk:
+        compressed=entry.get("id").isChunkCompressed()
+    else:
+        compressed=True if entry.get("size")!=entry.get("originalSize") else False #I cannot tell for certain if this is correct. I do not have any negative results though.
 
+    out=open2(outPath,"wb")
     if entry.get("idata"):
-        out=open2(outPath,"wb")
         if compressed: out.write(zlibIdata(entry.get("idata")))
         else:          out.write(entry.get("idata"))
-    else:        
+    else:
         catEntry=cat[entry.get("sha1")]
-        out=open2(outPath,"wb")
         cas=open(catEntry.path,"rb")
         cas.seek(catEntry.offset)
-        if compressed: out.write(zlibb(cas,catEntry.size))
+        if compressed: out.write(zlibb(cas,catEntry.size,True))
         else:          out.write(cas.read(catEntry.size))
         cas.close()
     out.close()
@@ -203,78 +205,69 @@ def casPayload(entry,outPath):
 
 def casChunkPayload(entry,outPath):
     if os.path.isfile(lp(outPath)): return False
-    
+
     catEntry=cat[entry.get("sha1")]
     out=open2(outPath,"wb")
     cas=open(catEntry.path,"rb")
     cas.seek(catEntry.offset)
     if entry.get("id").isChunkCompressed():
-        out.write(zlibb(cas,catEntry.size))
+        out.write(zlibb(cas,catEntry.size,True))
     else:
         out.write(cas.read(catEntry.size))
     cas.close()
     out.close()
 
-def noncasPayload(sb,offset,size,originalSize,outPath):
+def noncasBundlePayload(sb,entry,outPath):
     if os.path.isfile(lp(outPath)): return False
 
-    sb.seek(offset)
+    sb.seek(entry.offset)
     out=open2(outPath,"wb")
-    if size!=originalSize:
-        out.write(zlibb(sb,size))
+    if entry.compressed:
+        out.write(zlibb(sb,entry.size,False))
     else:
-        out.write(sb.read(size))
+        out.write(sb.read(entry.size))
     out.close()
 
     return True
 
-def noncasChunkPayload(sb,guid,offset,size,outPath):
+def noncasChunkPayload(sb,entry,outPath):
     if os.path.isfile(lp(outPath)): return False
 
-    sb.seek(offset)
+    sb.seek(entry.get("offset"))
     out=open2(outPath,"wb")
-    if guid.isChunkCompressed():
-        out.write(zlibb(sb,size))
+    if entry.get("id").isChunkCompressed():
+        out.write(zlibb(sb,entry.get("size"),False))
     else:
-        out.write(sb.read(size))      
+        out.write(sb.read(entry.get("size")))
     out.close()
 
     return True
 
 #zlib:
-#Files are split into pieces which are then zlibbed individually (prefixed with compressed and uncompressed size)
-#and finally glued together again. Non-zlib files on the other hand have no prefix about size, they are just the payload.
+#Compressed files are split into blocks which are then zlibbed individually (prefixed with compressed and uncompressed size)
+#and finally glued together again. Uncompressed files, on the other hand, are not blocked, they are just the payload.
 #For EBX and RES, size!=originalSize means compressed payload.
 #For chunks, the last bit in GUID is set for compressed payload.
-#To make things more complicated, individual pieces are sometimes uncompressed and there's no clear indicator of that.
-#Need to look into this further.
 
-def zlibb(f, size):    
+def zlibb(f,size,cas):
     outStream=io.BytesIO()
     startOffset=f.tell()
     while f.tell()<startOffset+size-8:
         uncompressedSize,compressedSize=unpack(">II",f.read(8)) #big endian
+        data=f.read(compressedSize)
 
-        #try to decompress
-        if compressedSize!=uncompressedSize:
-            try:    outStream.write(zlib.decompress(f.read(compressedSize)))
-            except: outStream.write(f.read(compressedSize))
+        #Some blocks are uncompressed.
+        if cas and compressedSize==uncompressedSize==0x10000:
+            outStream.write(data)
         else:
-            #if compressed==uncompressed, one might be tempted to think that it is always non-zlib. It's not.
-            magic=f.read(2)
-            f.seek(-2,1)
-            if magic==b"\x78\xda":
-                try:    outStream.write(zlib.decompress(f.read(compressedSize)))
-                except: outStream.write(f.read(compressedSize))
-            else:
-                outStream.write(f.read(compressedSize))
- 
+            outStream.write(zlib.decompress(data))
+
     data=outStream.getvalue()
     outStream.close()
     return data
 
 def zlibIdata(bytestring):
-    return zlibb(io.BytesIO(bytestring),len(bytestring))
+    return zlibb(io.BytesIO(bytestring),len(bytestring),False)
 
 
 
