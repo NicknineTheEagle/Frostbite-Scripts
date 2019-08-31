@@ -18,7 +18,7 @@ libzstd.ZSTD_createDCtx.restype=ctypes.c_void_p
 libzstd.ZSTD_decompress_usingDDict.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p]
 libzstd.ZSTD_freeDCtx.argtypes=[ctypes.c_void_p]
 libzstd.ZSTD_decompress.argtypes=[ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p,ctypes.c_size_t]
-oodle.OodleLZ_Decompress.argtypes=[ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p,ctypes.c_size_t,
+if oodle: oodle.OodleLZ_Decompress.argtypes=[ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p,ctypes.c_size_t,
                                   ctypes.c_int,ctypes.c_int,ctypes.c_int,
                                   ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int,
                                   ctypes.c_int]
