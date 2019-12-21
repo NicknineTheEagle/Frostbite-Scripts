@@ -10,12 +10,15 @@ import io
 import sys
 import zlib
 import subprocess
+from getpath import getGamePath, getExtractPath
 
-#Adjust paths here.
-#do yourself a favor and don't dump into the Users folder (or it might complain about permission)
+#You can hardcode paths here
+gameDirPath     = "" #C:\Games\Dragon Age Inquisition
+targetDirPath   = "" #do yourself a favor and don't dump into the Users folder (or it might complain about permission)
 
-gameDirectory   = r"D:\Games\OriginGames\Need for Speed The Run"
-targetDirectory = r"E:\GameRips\NFS\NFSTR\pc\dump"
+# helper code from getpath.py to verify existance of directory
+gameDirectory   = getGamePath(gameDirPath)
+targetDirectory = getExtractPath(targetDirPath)
 
 #####################################
 #####################################

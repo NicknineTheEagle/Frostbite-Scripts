@@ -1,11 +1,17 @@
 import os
 from struct import unpack,pack
 import ebx
+import getpath
 
-#Choose where you dumped the files and where to put the resulting TXT files.
-dumpDirectory   = r"E:\GameRips\NFS\NFSTR\pc\dump"
-targetDirectory = r"E:\GameRips\NFS\NFSTR\pc\ebx"
-inputFolder     = r"_c4\sound\music" #relative to ebxFolder
+#You can hardcode paths here 
+dumpPath        = "" #r"E:\Games\Dragon_Age_Inquisition_Export"
+targetPath      = "" #dumpPath+"\ebx" #Choose where you dumped the files and where to put the resulting TXT files.
+
+# helper code from getpath.py to verify existance of directory
+dumpDirectory   = getOrCreatePathWithQuery(dumpPath, "enter path to results of dump.py", False) # should exist already
+targetDirectory = getOrCreatePathWithQuery(targetPath, "enter path where the files should be extracted", True) # can be created if not
+inputFolder     = getRelativePathWithQuery(dumpPath + "bundles\ebx", "", "Enter subfolder (relative to dumpDirectory\bundles\ebx) to restrict result processing.\n If in doubt, leave empty.")  #r"audio\music" #relative to ebxFolder
+
 
 #These paths are relative to the dumpDirectory. They don't need to be changed.
 ebxFolder    = r"bundles\ebx"

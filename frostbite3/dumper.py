@@ -9,12 +9,15 @@ import cas
 import das
 import os
 from struct import pack,unpack
+from getpath import getGamePath, getExtractPath
 
-#Adjust paths here.
-#do yourself a favor and don't dump into the Users folder (or it might complain about permission)
+#You can hardcode paths here
+gameDirPath     = "" #C:\Games\Dragon Age Inquisition
+targetDirPath   = "" #do yourself a favor and don't dump into the Users folder (or it might complain about permission)
 
-gameDirectory   = r"D:\Games\OriginGames\Need for Speed(TM) Rivals"
-targetDirectory = r"E:\GameRips\NFS\NFSR\pc\dump"
+# helper code from getpath.py to verify existance of directory
+gameDirectory   = getGamePath(gameDirPath)
+targetDirectory = getExtractPath(targetDirPath)
 
 #####################################
 #####################################
@@ -43,8 +46,6 @@ resTypes={ #not really updated for bf4 though
     0xC6DBEE07:".mohwspecific",
     0xafecb022:".luac"
 }
-
-
 
 def dump(tocPath,baseTocPath,outPath):
     """Take the filename of a toc and dump all files to the targetFolder."""

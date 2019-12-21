@@ -2,10 +2,23 @@ import os
 from struct import unpack,pack
 import ebx
 
-#Choose where you dumped the files and where to put the extracted assets.
-dumpDirectory   = r"E:\GameRips\NFS\NFSTR\pc\dump"
-targetDirectory = r"E:\GameRips\NFS\NFSTR\pc\assets"
-inputFolder     = r"_c4\sound\music" #relative to ebxFolder
+from getpath import getGamePath, getExtractPath
+
+
+#You can hardcode paths here. If they're not empty, the functions below won't do anything.
+
+# where did you put the results of dumper.py? 
+dumpPath        = "" #r"E:\Games\Dragon_Age_Inquisition_Export"
+
+# where do you want to put the extracted assets?
+targetPath      = "" #dumpPath+"\_assets" 
+
+# helper code from getpath.py to verify existance of directory
+dumpDirectory   = getOrCreatePathWithQuery(dumpPath, "enter path to results of dump.py", False) # should exist already
+targetDirectory = getOrCreatePathWithQuery(targetPath, "destination path for created assets (will be created if necessary)", True) 
+
+inputFolder     = getRelativePathWithQuery(dumpPath + "bundles\ebx", "", "Enter subfolder (relative to dumpDirectory\bundles\ebx) to restrict result processing.\n If in doubt, leave empty.")  #r"audio\music" #relative to ebxFolder
+
 
 #These paths are relative to the dumpDirectory. They don't need to be changed.
 ebxFolder    = r"bundles\ebx"
