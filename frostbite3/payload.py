@@ -82,7 +82,7 @@ def decompressBlock(f,f2):
         oodle.OodleLZ_Decompress(srcBuf,compressedSize,dstBuf,uncompressedSize,0,0,0,0,0,0,0,0,0,3)
         f2.write(dstBuf)
     elif comType==0x02:
-        #Block is compressed with Zlib.
+        #Block is compressed with zlib.
         srcBuf=f.read(compressedSize)
         dstBuf=zlib.decompress(srcBuf)
         f2.write(dstBuf)

@@ -281,7 +281,7 @@ def openSbFile(sbPath):
         #Decompress it into a temporary file with the tool, we'll clean it up once we're done.
         sb.close()
         decSbPath=os.path.join(targetDirectory,"temp",os.path.relpath(sbPath,gameDirectory))
-        subprocess.call([r"..\thirdparty\xbdecompress.exe","/T","/Y",sbPath,decSbPath])
+        subprocess.run([r"..\thirdparty\xbdecompress.exe","/T","/Y",sbPath,decSbPath])
         tempFiles.append(decSbPath)
         return open(decSbPath,"rb")
 
