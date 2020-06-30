@@ -28,7 +28,12 @@ def writeGuidTable(dumpFolder):
 
 def loadGuidTable(dumpFolder):
     global guidTable
-    f=open(os.path.join(dumpFolder,"guidTable.bin"),"rb")
+    path=os.path.join(dumpFolder,"guidTable.bin")
+    if not os.path.isfile(path):
+        print("WARNING: EBX GUID table is missing, it is required to properly parse links between different EBX!")
+        return
+
+    f=open(path,"rb")
     guidTable=pickle.load(f)
     f.close()
 
