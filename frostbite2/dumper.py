@@ -46,11 +46,11 @@ resTypes={
 
 def makeLongDirs(path):
     folderPath=lp(os.path.dirname(path))
-    if not os.path.isdir(folderPath): os.makedirs(folderPath)
+    os.makedirs(folderPath,exist_ok=True)
 
 def open2(path,mode):
     #create folders if necessary and return the file handle
-    if mode.find("w")!=-1: makeLongDirs(path)
+    if "w" in mode: makeLongDirs(path)
     return open(lp(path),mode)
 
 def lp(path): #long pathnames
@@ -315,7 +315,7 @@ def readCat(catDict, catPath):
         catDict[catEntry.sha1]=catEntry
 
 def dumpRoot(dataDir,patchDir,outPath):
-    if not os.path.isdir(outPath): os.makedirs(outPath)
+    os.makedirs(outPath,exist_ok=True)
     commonDatPath=os.path.join(patchDir,"common.dat")
 
     for dir0, dirs, ff in os.walk(dataDir):
@@ -355,7 +355,7 @@ if os.path.isfile(catPath):
         readCat(cat,patchedCat)
 
 if os.path.isdir(updateDir):
-    #First, extract all DLC.
+    #First, extract all DLCs.
     for dir in os.listdir(updateDir):
         if dir=="Patch":
             continue
@@ -378,6 +378,7 @@ if os.path.isdir(os.path.join(gameDirectory,"game","Speed")):
     dataDir=os.path.join(gameDirectory,"Speed")
     updateDir=os.path.join(gameDirectory,"Update")
     patchDir=os.path.join(updateDir,"Patch","Speed")
+    ebx.guidTable.clear();
     dumpRoot(dataDir,patchDir,os.path.join(targetDirectory,"speed"))
 
     #Write GUID table.

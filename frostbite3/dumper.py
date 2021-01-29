@@ -157,7 +157,7 @@ def dump(tocPath,baseTocPath,outPath):
 
 
 def dumpRoot(dataDir,patchDir,outPath):
-    if not os.path.isdir(outPath): os.makedirs(outPath)
+    os.makedirs(outPath,exist_ok=True)
 
     for dir0, dirs, ff in os.walk(dataDir):
         for fname in ff:
@@ -256,7 +256,7 @@ else:
         readCat=cas.readCat3
 
     if os.path.isdir(updateDir):
-        #First, extract all DLC.
+        #First, extract all DLCs.
         for dir in os.listdir(updateDir):
             print("Extracting DLC %s..." % dir)
             dir=os.path.join(updateDir,dir,"Data")

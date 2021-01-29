@@ -27,11 +27,11 @@ if oodle: oodle.OodleLZ_Decompress.argtypes=[ctypes.c_void_p,ctypes.c_size_t,cty
 
 def makeLongDirs(path):
     folderPath=lp(os.path.dirname(path))
-    if not os.path.isdir(folderPath): os.makedirs(folderPath)
+    os.makedirs(folderPath,exist_ok=True)
 
 def open2(path,mode):
     #create folders if necessary and return the file handle
-    if mode.find("w")!=-1: makeLongDirs(path)
+    if "w" in mode: makeLongDirs(path)
     return open(lp(path),mode)
 
 def lp(path): #long pathnames

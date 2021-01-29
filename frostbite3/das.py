@@ -51,8 +51,8 @@ def readDal(dalPath):
 
 def prepareDir(targetPath):
     if os.path.exists(targetPath): return True
-    dirName=os.path.dirname(targetPath)
-    if not os.path.exists(dirName): os.makedirs(dirName)
+    folderPath=os.path.dirname(targetPath)
+    os.makedirs(folderPath,exist_ok=True)
     #print(targetPath)
 
 def dump(tocPath,outPath):
