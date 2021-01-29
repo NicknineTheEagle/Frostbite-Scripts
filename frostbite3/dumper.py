@@ -197,7 +197,8 @@ payload.zstdInit()
 #Load layout.toc
 tocLayout=dbo.readToc(os.path.join(gameDirectory,"Data","layout.toc"))
 
-if not tocLayout.getSubObject("installManifest"):
+if not tocLayout.getSubObject("installManifest") or \
+    not tocLayout.getSubObject("installManifest").getSubObject("installChunks"):
     if not os.path.isfile(os.path.join(gameDirectory,"Data","das.dal")):
         #Old layout similar to Frostbite 2 with a single cas.cat.
         #Can also be non-cas.
@@ -205,7 +206,10 @@ if not tocLayout.getSubObject("installManifest"):
         updateDir=os.path.join(gameDirectory,"Update")
         patchDir=os.path.join(updateDir,"Patch","Data")
 
-        readCat=cas.readCat1
+        if not tocLayout.getSubObject("installManifest"):
+            readCat=cas.readCat1
+        else:
+            readCat=cas.readCat2 #Star Wars: Battlefront Beta
 
         catPath=os.path.join(dataDir,"cas.cat") #Seems to always be in the same place
         if os.path.isfile(catPath):
@@ -251,9 +255,9 @@ else:
 
     #Detect cat version.
     if tocLayout.getSubObject("installManifest").get("maxTotalSize")!=None:
-        readCat=cas.readCat2
-    else:
         readCat=cas.readCat3
+    else:
+        readCat=cas.readCat4
 
     if os.path.isdir(updateDir):
         #First, extract all DLCs.
