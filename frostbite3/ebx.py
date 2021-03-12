@@ -341,7 +341,7 @@ class Dbx:
                     a=f.read(1)
                     if a==b"\x00": break
                     data+=a
-                field.value=data.decode("utf-8")
+                field.value=data.decode("ISO-8859-1")
                 f.seek(startPos+4)
 
                 if self.isPrimaryInstance and fieldDesc.name=="Name" and self.trueFilename=="":
