@@ -8,7 +8,8 @@ There is one folder for each Frostbite version:
    * Frostbite Engine 2 (2011-2012) - Battlefield 3, Need for Speed: The Run, ...
  * frostbite3
    * Frostbite Engine 3 (2013-present) - Battlefield 4, Need for Speed: Rivals, ...
-   * Newest games from 2018 and later (Star Wars: Battlefront II, Battlefield V, FIFA 19, Anthem) are not supported yet.
+* frostbite3-layoutchange
+   * Frostbite Engine 3 (2018-present) - Battlefront 2. Battlefield V
    
 IMPORTANT! Some games require proprietary libraries that I can't distribute here. You'll need to get them youself if you want to extract those games:
  * Some X360 games use X360 compression on some SB files. Find Xbox 360 File Decompression Tool (xbdecompress.exe) and put it into thirdparty directory.
@@ -35,6 +36,7 @@ So if you want to get the game assets you need to take the EBX files and use the
 CREDITS:
  * Frankelstner - initial research of Frostbite formats and original Python scripts
  * NoFaTe - some improvements to Ebx and DbObject parser
+ * Galaxyman2015 - Updates for new layout
 
 Libraries used:
  * LZ4 - https://github.com/lz4/lz4
