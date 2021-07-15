@@ -256,11 +256,11 @@ def zlibb(f,size,cas):
         uncompressedSize,compressedSize=unpack(">II",f.read(8)) #big endian
         data=f.read(compressedSize)
 
-        #Some blocks are uncompressed.
-        if cas and compressedSize==uncompressedSize==0x10000:
-            outStream.write(data)
-        else:
+        #TODO: Some blocks in BF3 are apparently uncompressed? Not sure what's going on here.
+        try:
             outStream.write(zlib.decompress(data))
+        except:
+            outStream.write(data)
 
     data=outStream.getvalue()
     outStream.close()
