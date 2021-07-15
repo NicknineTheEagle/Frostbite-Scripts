@@ -28,7 +28,7 @@ def readCat1(catPath):
         catDict[sha1]=CatEntry(cat,casDirectory,1)
 
 def readCat2(catPath):
-    #2015 (BF Beta), added the number of entries in the header and a new section with unknown data (usually empty).
+    #2015 (SWBF Beta), added the number of entries in the header and a new section with unknown data (usually empty).
     cat=dbo.unXor(catPath)
     cat.seek(16) #skip nyan
     numEntries, unk = unpack("<II",cat.read(8))
@@ -39,7 +39,7 @@ def readCat2(catPath):
         catDict[sha1]=CatEntry(cat,casDirectory,2)
 
 def readCat3(catPath):
-    #2015 (BF Final), added a a new var (always 0?) to cat entry.
+    #2015 (SWBF Final), added a a new var (always 0?) to cat entry.
     cat=dbo.unXor(catPath)
     cat.seek(16) #skip nyan
     numEntries, unk = unpack("<II",cat.read(8))
