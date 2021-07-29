@@ -9,6 +9,7 @@ import cas
 import das
 import os
 from struct import pack,unpack
+import res
 
 #Adjust paths here.
 #do yourself a favor and don't dump into the Users folder (or it might complain about permission)
@@ -18,33 +19,6 @@ targetDirectory = r"E:\GameRips\NFS\NFSR\pc\dump"
 
 #####################################
 #####################################
-
-resTypes={ #not really updated for bf4 though
-    0x5C4954A6:".itexture",
-    0x2D47A5FF:".gfx",
-    0x22FE8AC8:"",
-    0x6BB6D7D2:".streamingstub",
-    0x1CA38E06:"",
-    0x15E1F32E:"",
-    0x4864737B:".hkdestruction",
-    0x91043F65:".hknondestruction",
-    0x51A3C853:".ant",
-    0xD070EED1:".animtrackdata",
-    0x319D8CD0:".ragdoll",
-    0x49B156D4:".mesh",
-    0x30B4A553:".occludermesh",
-    0x5BDFDEFE:".lightingsystem",
-    0x70C5CB3E:".enlighten",
-    0xE156AF73:".probeset",
-    0x7AEFC446:".staticenlighten",
-    0x59CEEB57:".shaderdatabase",
-    0x36F3F2C0:".shaderdb",
-    0x10F0E5A1:".shaderprogramdb",
-    0xC6DBEE07:".mohwspecific",
-    0xafecb022:".luac"
-}
-
-
 
 def dump(tocPath,baseTocPath,outPath):
     """Take the filename of a toc and dump all files to the targetFolder."""
@@ -93,7 +67,7 @@ def dump(tocPath,baseTocPath,outPath):
                     ebx.addEbxGuid(path,ebxPath)
 
             for entry in bundle.get("res",list()): #name sha1 size originalSize resRid resType resMeta
-                path=os.path.join(resPath,entry.get("name")+".res")
+                path=os.path.join(resPath,entry.get("name")+res.getResExt(entry.get("resType")))
                 writePayload(entry,path,False)
 
             for entry in bundle.get("chunks",list()): #id sha1 size logicalOffset logicalSize chunkMeta::h32 chunkMeta::meta
@@ -139,7 +113,7 @@ def dump(tocPath,baseTocPath,outPath):
                     ebx.addEbxGuid(path,ebxPath)
 
             for entry in bundle.res:
-                path=os.path.join(resPath,entry.name+".res")
+                path=os.path.join(resPath,entry.name+res.getResExt(entry.resType))
                 writePayload(entry,path,sourcePath)
 
             for entry in bundle.chunks:
@@ -193,6 +167,9 @@ def findCats(dataDir,patchDir,readCat):
 gameDirectory=os.path.normpath(gameDirectory)
 targetDirectory=os.path.normpath(targetDirectory) #it's an absolute path already
 payload.zstdInit()
+
+print("Loading RES names...")
+res.loadResNames()
 
 #Load layout.toc
 tocLayout=dbo.readToc(os.path.join(gameDirectory,"Data","layout.toc"))
@@ -272,8 +249,14 @@ else:
     findCats(dataDir,patchDir,readCat)
     dumpRoot(dataDir,patchDir,targetDirectory)
 
+if not os.path.isdir(targetDirectory):
+    print("Nothing was extracted, did you set input path correctly?")
+    sys.exit(1)
+
 #Write GUID table.
 print("Writing EBX GUID table...")
 ebx.writeGuidTable(targetDirectory)
+
+res.writeUnkResTypes(targetDirectory)
 
 payload.zstdCleanup()

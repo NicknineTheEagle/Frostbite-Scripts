@@ -9,16 +9,22 @@ from struct import unpack,pack
 import shutil
 import pickle
 from dbo import Guid
+import res
 
 def unpackLE(typ,data): return unpack("<"+typ,data)
 def unpackBE(typ,data): return unpack(">"+typ,data)
 
 guidTable=dict()
+parsedEbx=list()
 
 def addEbxGuid(path,ebxRoot):
+    if path in parsedEbx:
+        return
+
     #Add EBX GUID and name to the database.
     dbx=Dbx(path,ebxRoot)
     guidTable[dbx.fileGUID]=dbx.trueFilename
+    parsedEbx.append(path)
 
 def writeGuidTable(dumpFolder):
     f=open(os.path.join(dumpFolder,"guidTable.bin"),"wb")
@@ -29,7 +35,7 @@ def loadGuidTable(dumpFolder):
     global guidTable
     path=os.path.join(dumpFolder,"guidTable.bin")
     if not os.path.isfile(path):
-        print("WARNING: EBX GUID table is missing, it is required to properly parse links between different EBX!")
+        print("WARNING: EBX GUID table is missing, it is required to properly parse links between different EBX files!")
         return
 
     f=open(path,"rb")
@@ -59,7 +65,8 @@ def hasher(keyword): #32bit FNV-1 hash with FNV_offset_basis = 5381 and FNV_prim
     hash = 5381
     for byte in keyword:
         hash = (hash*33) ^ ord(byte)
-    return hash & 0xffffffff # use & because Python promotes the num instead of intended overflow
+        hash &= 0xffffffff # use & because Python promotes the num instead of intended overflow
+    return hash
 class Header:
     def __init__(self,varList): ##all 4byte unsigned integers
         self.absStringOffset     = varList[0]  ## absolute offset for string section start
@@ -467,10 +474,18 @@ class Dbx:
         elif self.prim.desc.name=="MovieTextureAsset": self.extractMovieAsset()
 
     def findRes(self,name):
-        path=os.path.join(self.resFolder,name+".res").lower()
+        name=name.lower()
+        if name not in res.resTable:
+            print("Res not found in RES table: "+name)
+            return None
+
+        resInfo=res.resTable[name]
+        ext=resInfo.getResExt()
+        path=os.path.join(self.resFolder,name+ext)
         if not os.path.isfile(lp(path)):
             print("Res does not exist: "+name)
             return None
+
         return path
 
     def extractRes(self,name,ext):

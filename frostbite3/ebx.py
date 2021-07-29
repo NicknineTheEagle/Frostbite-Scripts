@@ -14,12 +14,17 @@ def unpackLE(typ,data): return unpack("<"+typ,data)
 def unpackBE(typ,data): return unpack(">"+typ,data)
 
 guidTable=dict()
+parsedEbx=list()
 
 def addEbxGuid(path,ebxRoot):
+    if path in parsedEbx:
+        return
+
     #Add EBX GUID and name to the database.
     #Only parse primary instance since we just need Name field and there are some enormous EBX files.
     dbx=Dbx(path,ebxRoot,True)
     guidTable[dbx.fileGUID]=dbx.trueFilename
+    parsedEbx.append(path)
 
 def writeGuidTable(dumpFolder):
     f=open(os.path.join(dumpFolder,"guidTable.bin"),"wb")
@@ -30,7 +35,7 @@ def loadGuidTable(dumpFolder):
     global guidTable
     path=os.path.join(dumpFolder,"guidTable.bin")
     if not os.path.isfile(path):
-        print("WARNING: EBX GUID table is missing, it is required to properly parse links between different EBX!")
+        print("WARNING: EBX GUID table is missing, it is required to properly parse links between different EBX files!")
         return
 
     f=open(path,"rb")
@@ -60,7 +65,8 @@ def hasher(keyword): #32bit FNV-1 hash with FNV_offset_basis = 5381 and FNV_prim
     hash = 5381
     for byte in keyword:
         hash = (hash*33) ^ ord(byte)
-    return hash & 0xffffffff # use & because Python promotes the num instead of intended overflow
+        hash &= 0xffffffff # use & because Python promotes the num instead of intended overflow
+    return hash
 class Header:
     def __init__(self,varList):
         self.absStringOffset     = varList[0]  ## absolute offset for string section start
@@ -439,7 +445,7 @@ class Dbx:
 
         elif typ==FieldType.ResourceRef:
             # ResourceRef
-            field.value=f.read(8)
+            field.value=self.unpack("Q",f.read(8))[0]
 
         else:
             # Unknown
@@ -502,9 +508,10 @@ class Dbx:
                 self.writeField(f2,field,lvl," "+field.value.hex().upper())
 
             elif typ==FieldType.ResourceRef:
-                val=field.value[::-1].hex()
-                # val=val[:16]+"/"+val[16:]
-                self.writeField(f2,field,lvl," "+val)
+                #val=field.value[::-1].hex()
+                #val=val[:16]+"/"+val[16:]
+                #self.writeField(f2,field,lvl," "+val)
+                self.writeField(f2,field,lvl," "+str(field.value))
 
             else:
                 self.writeField(f2,field,lvl," "+str(field.value))

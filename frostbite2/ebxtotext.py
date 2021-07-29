@@ -1,6 +1,7 @@
 import os
 from struct import unpack,pack
 import ebx
+import res
 
 #Choose where you dumped the files and where to put the resulting TXT files.
 dumpDirectory   = r"E:\GameRips\NFS\NFSTR\pc\dump"
@@ -20,6 +21,8 @@ inputFolder=os.path.join(ebxFolder,inputFolder)
 
 print("Loading GUID table...")
 ebx.loadGuidTable(dumpDirectory)
+print ("Loading RES table...")
+res.loadResTable(dumpDirectory)
 
 for dir0, dirs, ff in os.walk(inputFolder):
     for fname in ff:

@@ -10,6 +10,8 @@ import io
 import sys
 import zlib
 import subprocess
+import shutil
+import res
 
 #Adjust paths here.
 #do yourself a favor and don't dump into the Users folder (or it might complain about permission)
@@ -19,30 +21,6 @@ targetDirectory = r"E:\GameRips\NFS\NFSTR\pc\dump"
 
 #####################################
 #####################################
-
-resTypes={
-    0x5C4954A6:".itexture",
-    0x2D47A5FF:".gfx",
-    0x22FE8AC8:"",
-    0x6BB6D7D2:".streamingstub",
-    0x1CA38E06:"",
-    0x15E1F32E:"",
-    0x4864737B:".hkdestruction",
-    0x91043F65:".hknondestruction",
-    0x51A3C853:".ant",
-    0xD070EED1:".animtrackdata",
-    0x319D8CD0:".ragdoll",
-    0x49B156D4:".mesh",
-    0x30B4A553:".occludermesh",
-    0x5BDFDEFE:".lightingsystem",
-    0x70C5CB3E:".enlighten",
-    0xE156AF73:".probeset",
-    0x7AEFC446:".staticenlighten",
-    0x59CEEB57:".shaderdatabase",
-    0x36F3F2C0:".shaderdb",
-    0x10F0E5A1:".shaderprogramdb",
-    0xC6DBEE07:".mohwspecific"
-}
 
 def makeLongDirs(path):
     folderPath=lp(os.path.dirname(path))
@@ -81,8 +59,8 @@ def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
 
             for entry in bundle.get("ebx",list()): #name sha1 size originalSize
                 path=os.path.join(ebxPath,entry.get("name")+".ebx")
-                if casBundlePayload(entry,path,False):
-                    ebx.addEbxGuid(path,ebxPath)
+                casBundlePayload(entry,path,False)
+                ebx.addEbxGuid(path,ebxPath)
 
             for entry in bundle.get("dbx",list()): #name sha1 size originalSize
                 if entry.get("idata"): #dbx appear only idata if at all, they are probably deprecated and were not meant to be shipped at all.
@@ -95,7 +73,8 @@ def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
                     out.close()
 
             for entry in bundle.get("res",list()): #name sha1 size originalSize resType resMeta
-                path=os.path.join(resPath,entry.get("name")+".res")
+                res.addToResTable(entry.get("name"),entry.get("resType"),entry.get("resMeta"))
+                path=os.path.join(resPath,entry.get("name")+res.getResExt(entry.get("resType")))
                 casBundlePayload(entry,path,False)
 
             for entry in bundle.get("chunks",list()): #id sha1 size chunkMeta::h32 chunkMeta::meta
@@ -157,12 +136,13 @@ def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
 
             for entry in bundle.ebxEntries:
                 path=os.path.join(ebxPath,entry.name+".ebx")
-                if noncasBundlePayload(sb2,entry,path):
-                    ebx.addEbxGuid(path,ebxPath)
+                noncasBundlePayload(sb2,entry,path)
+                ebx.addEbxGuid(path,ebxPath)
 
             for entry in bundle.resEntries:
+                res.addToResTable(entry.name,entry.resType,entry.resMeta)
                 originalSize=entry.originalSize
-                path=os.path.join(resPath,entry.name+".res")
+                path=os.path.join(resPath,entry.name+res.getResExt(entry.resType))
                 noncasBundlePayload(sb2,entry,path)
 
             for entry in bundle.chunkEntries:
@@ -176,12 +156,13 @@ def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
 
     #Clean up.
     sb.close()
-    clearTempFiles()
+    if os.path.isdir(tempDirectory):
+        shutil.rmtree(tempDirectory)
 
 
 
 def casBundlePayload(entry,outPath,isChunk):
-    if os.path.isfile(lp(outPath)): return False
+    if os.path.isfile(lp(outPath)): return
 
     if isChunk:
         compressed=entry.get("id").isChunkCompressed()
@@ -196,7 +177,7 @@ def casBundlePayload(entry,outPath,isChunk):
         catEntry=cat[entry.get("sha1")]
         cas=open(catEntry.path,"rb")
         cas.seek(catEntry.offset)
-        if compressed: out.write(zlibb(cas,catEntry.size,True))
+        if compressed: out.write(zlibb(cas,catEntry.size))
         else:          out.write(cas.read(catEntry.size))
         cas.close()
     out.close()
@@ -204,44 +185,40 @@ def casBundlePayload(entry,outPath,isChunk):
     return True
 
 def casChunkPayload(entry,outPath):
-    if os.path.isfile(lp(outPath)): return False
+    if os.path.isfile(lp(outPath)): return
 
     catEntry=cat[entry.get("sha1")]
     out=open2(outPath,"wb")
     cas=open(catEntry.path,"rb")
     cas.seek(catEntry.offset)
     if entry.get("id").isChunkCompressed():
-        out.write(zlibb(cas,catEntry.size,True))
+        out.write(zlibb(cas,catEntry.size))
     else:
         out.write(cas.read(catEntry.size))
     cas.close()
     out.close()
 
 def noncasBundlePayload(sb,entry,outPath):
-    if os.path.isfile(lp(outPath)): return False
+    if os.path.isfile(lp(outPath)): return
 
     sb.seek(entry.offset)
     out=open2(outPath,"wb")
     if entry.compressed:
-        out.write(zlibb(sb,entry.size,False))
+        out.write(zlibb(sb,entry.size))
     else:
         out.write(sb.read(entry.size))
     out.close()
 
-    return True
-
 def noncasChunkPayload(sb,entry,outPath):
-    if os.path.isfile(lp(outPath)): return False
+    if os.path.isfile(lp(outPath)): return
 
     sb.seek(entry.get("offset"))
     out=open2(outPath,"wb")
     if entry.get("id").isChunkCompressed():
-        out.write(zlibb(sb,entry.get("size"),False))
+        out.write(zlibb(sb,entry.get("size")))
     else:
         out.write(sb.read(entry.get("size")))
     out.close()
-
-    return True
 
 #zlib:
 #Compressed files are split into blocks which are then zlibbed individually (prefixed with compressed and uncompressed size)
@@ -249,7 +226,7 @@ def noncasChunkPayload(sb,entry,outPath):
 #For EBX and RES, size!=originalSize means compressed payload.
 #For chunks, the last bit in GUID is set for compressed payload.
 
-def zlibb(f,size,cas):
+def zlibb(f,size):
     outStream=io.BytesIO()
     startOffset=f.tell()
     while f.tell()<startOffset+size-8:
@@ -267,11 +244,9 @@ def zlibb(f,size,cas):
     return data
 
 def zlibIdata(bytestring):
-    return zlibb(io.BytesIO(bytestring),len(bytestring),False)
+    return zlibb(io.BytesIO(bytestring),len(bytestring))
 
 
-
-tempFiles=list()
 
 def openSbFile(sbPath):
     sb=open(sbPath,"rb")
@@ -280,19 +255,13 @@ def openSbFile(sbPath):
         #X360 compressed file.
         #Decompress it into a temporary file with the tool, we'll clean it up once we're done.
         sb.close()
-        decSbPath=os.path.join(targetDirectory,"temp",os.path.relpath(sbPath,gameDirectory))
+        decSbPath=os.path.join(tempDirectory,os.path.relpath(sbPath,gameDirectory))
         subprocess.run([r"..\thirdparty\xbdecompress.exe","/T","/Y",sbPath,decSbPath])
-        tempFiles.append(decSbPath)
         return open(decSbPath,"rb")
 
     #Normal SB file.
     sb.seek(0)
     return sb
-
-def clearTempFiles():
-    for temp in tempFiles:
-        os.remove(temp)
-    tempFiles.clear()
 
 
 
@@ -337,9 +306,14 @@ def dumpRoot(dataDir,patchDir,outPath):
 gameDirectory=os.path.normpath(gameDirectory)
 targetDirectory=os.path.normpath(targetDirectory) #it's an absolute path already
 
+tempDirectory=os.path.join(targetDirectory,"temp")
+
 dataDir=os.path.join(gameDirectory,"Data")
 updateDir=os.path.join(gameDirectory,"Update")
 patchDir=os.path.join(updateDir,"Patch","Data")
+
+print("Loading RES names...")
+res.loadResNames()
 
 #read cat file
 cat=dict()
@@ -367,20 +341,35 @@ if os.path.isdir(updateDir):
 print("Extracting main game...")
 dumpRoot(dataDir,patchDir,targetDirectory)
 
+if not os.path.isdir(targetDirectory):
+    print("Nothing was extracted, did you set input path correctly?")
+    sys.exit(1)
+
 #Write GUID table.
 print("Writing EBX GUID table...")
 ebx.writeGuidTable(targetDirectory)
+
+# Write RES table.
+print ("Writing RES table...")
+res.writeResTable(targetDirectory)
 
 #MOH:WF hack: extract driving levels assets.
 if os.path.isdir(os.path.join(gameDirectory,"game","Speed")):
     print("Extracting MOH:WF driving assets...")
     gameDirectory=os.path.join(gameDirectory,"game")
+    targetDirectory=os.path.join(targetDirectory,"speed")
     dataDir=os.path.join(gameDirectory,"Speed")
     updateDir=os.path.join(gameDirectory,"Update")
     patchDir=os.path.join(updateDir,"Patch","Speed")
-    ebx.guidTable.clear();
-    dumpRoot(dataDir,patchDir,os.path.join(targetDirectory,"speed"))
+    ebx.guidTable.clear()
+    res.resTable.clear()
+    res.unkResTypes.clear()
+    dumpRoot(dataDir,patchDir,targetDirectory)
 
     #Write GUID table.
     print("Writing EBX GUID table...")
-    ebx.writeGuidTable(os.path.join(targetDirectory,"speed"))
+    ebx.writeGuidTable(targetDirectory)
+
+    # Write RES table.
+    print ("Writing RES table...")
+    res.writeResTable(targetDirectory)

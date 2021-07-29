@@ -182,7 +182,7 @@ def decompressPatchedPayload(basePath,baseOffset,deltaPath,deltaOffset,deltaSize
 
 #for each bundle, the dump script selects one of these six functions
 def casBundlePayload(entry,targetPath,isChunk):
-    if os.path.isfile(lp(targetPath)): return False
+    if os.path.isfile(lp(targetPath)): return True
 
     #Some files may be from localizations user doesn't have installed.
     sha1=entry.get("sha1")
@@ -199,7 +199,7 @@ def casBundlePayload(entry,targetPath,isChunk):
         return False
 
 def casPatchedBundlePayload(entry,targetPath,isChunk):
-    if os.path.isfile(lp(targetPath)): return False
+    if os.path.isfile(lp(targetPath)): return True
 
     if entry.get("casPatchType")==2:
         if isChunk:
@@ -217,7 +217,7 @@ def casPatchedBundlePayload(entry,targetPath,isChunk):
         return casBundlePayload(entry, targetPath,isChunk) #if casPatchType is not 2, use the unpatched function.
 
 def casChunkPayload(entry,targetPath):
-    if os.path.isfile(lp(targetPath)): return False
+    if os.path.isfile(lp(targetPath)): return True
 
     #Some files may be from localizations user doesn't have installed.
     sha1=entry.get("sha1")
@@ -229,12 +229,12 @@ def casChunkPayload(entry,targetPath):
         return False
 
 def noncasBundlePayload(entry,targetPath,sourcePath):
-    if os.path.isfile(lp(targetPath)): return False
+    if os.path.isfile(lp(targetPath)): return True
     decompressPayload(sourcePath,entry.offset,entry.size,entry.originalSize,targetPath)
     return True
 
 def noncasPatchedBundlePayload(entry,targetPath,sourcePath):
-    if os.path.isfile(lp(targetPath)): return False
+    if os.path.isfile(lp(targetPath)): return True
     decompressPatchedPayload(sourcePath[0], entry.baseOffset,#entry.baseSize,
                             sourcePath[1], entry.deltaOffset, entry.deltaSize,
                             entry.originalSize, targetPath,
@@ -242,7 +242,7 @@ def noncasPatchedBundlePayload(entry,targetPath,sourcePath):
     return True
 
 def noncasChunkPayload(entry,targetPath,sourcePath):
-    if os.path.isfile(lp(targetPath)): return False
+    if os.path.isfile(lp(targetPath)): return True
     decompressPayload(sourcePath,entry.get("offset"),entry.get("size"),None,targetPath)
     return True
 
@@ -252,7 +252,7 @@ def zstdInit():
     #Load Zstd compression dictionary.
     global zstd_dict
 
-    f=open("zstdDict.bin","rb")
+    f=open(r"..\misc\zstdDict.bin","rb")
     data=f.read()
     f.close()
     zstd_dict=ctypes.c_void_p(libzstd.ZSTD_createDDict(data,len(data)))
