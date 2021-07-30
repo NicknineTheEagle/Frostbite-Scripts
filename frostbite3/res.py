@@ -1,6 +1,7 @@
 import os
 import re
 import pickle
+import dbo
 
 resTypes=dict()
 resTable=dict()
@@ -79,3 +80,21 @@ def loadResTable(dumpFolder):
 
     #Load RES names, too.
     loadResNames()
+
+newWaves=dict()
+newWavesCached=False
+
+def cacheNewWaveResources(bigEndian):
+    #Special case for NewWaveAssets which look up NewWaveResources by GUID stored in resMeta.
+    global newWavesCached
+    if newWavesCached:
+        return
+
+    print("Caching NewWaveResource GUIDs...")
+    typ=hasher("newwaveresource")
+    for val in resTable.values():
+        if val.resType==typ:
+            guid=dbo.Guid.frombytes(val.resMeta,bigEndian)
+            newWaves[guid]=val
+
+    newWavesCached=True

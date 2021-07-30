@@ -10,6 +10,7 @@ import shutil
 import pickle
 from dbo import Guid
 import res
+import sbr
 
 def unpackLE(typ,data): return unpack("<"+typ,data)
 def unpackBE(typ,data): return unpack(">"+typ,data)
@@ -511,8 +512,8 @@ class Dbx:
             elif typ==FieldType.ResourceRef:
                 resRid=field.value
                 towrite=" "+str(resRid)
-                if field.value in res.resTable:
-                    towrite+=" # "+res.resTable[resRid].name
+                if resRid in res.resTable:
+                    towrite+=" #"+res.resTable[resRid].name
                 self.writeField(f2,field,lvl,towrite)
 
             else:
@@ -589,30 +590,6 @@ class Dbx:
 
         f2.close()
 
-    def collectSPS(self,f,totalSize):
-        #Go through the chunk and collect all the sounds present in it.
-        soundOffsets=[]
-        offset=0
-
-        while offset!=totalSize:
-            f.seek(offset)
-            if f.read(1)!=b"\x48":
-                raise Exception("Wrong SPS header.")
-
-            soundOffsets.append(offset)
-            # 0x48=header, 0x44=normal block, 0x45=last block (empty)
-            while True:
-                f.seek(offset)
-                blockStart=unpack(">I",f.read(4))[0]
-                blockId=(blockStart&0xFF000000)>>24
-                blockSize=blockStart&0x00FFFFFF
-                offset+=blockSize
-
-                if blockId==0x45:
-                    break
-
-        return soundOffsets
-
     def extractSoundWaveAsset(self):
         print(self.trueFilename)
 
@@ -655,6 +632,69 @@ class Dbx:
                 Variation.Index=0
                 histogram[Variation.ChunkIndex]=1
 
+        self.extractSoundVariations(Chunks,Variations)
+
+    def extractNewWaveAsset(self):
+        print(self.trueFilename)
+
+        #Cache GUIDs for lookup the first time we encounter NewWaveAsset.
+        res.cacheNewWaveResources(self.bigEndian)
+
+        if self.prim.guid not in res.newWaves:
+            print("NewWaveResource not found in table for EBX: " + self.trueFilename)
+            return
+
+        resInfo=res.newWaves[self.prim.guid]
+        resPath=os.path.join(self.resFolder,resInfo.getResFilename())
+        if not os.path.isfile(lp(resPath)):
+            print("RES does not exist: " + os.path.relpath(resPath,self.resFolder))
+            return
+
+        bank=sbr.Bank(lp(resPath))
+        histogram=dict() #count the number of times each chunk is used by a variation to obtain the right index
+
+        Chunks=[]
+        for i in range(bank.get("Chunks").numElems):
+            chnk=Stub()
+            Chunks.append(chnk)
+            chnk.ChunkId=bank.get("Chunks").get("ChunkId").getGuid(i)
+            chnk.ChunkSize=bank.get("Chunks").get("ChunkSize").values[i]
+
+        Variations=[]
+        Segments=[]
+        for i in range(bank.get("Segments").numElems):
+            Segment=Stub()
+            Segments.append(Segment)
+            Segment.SamplesOffset=bank.get("Segments").get("SamplesOffset").values[i] & (~0x03)
+            Segment.SeekTableOffset=bank.get("Segments").get("SeekTableOffset").values[i] & (~0x03)
+            Segment.SegmentLength=bank.get("Segments").get("Duration").values[i]
+
+        for i in range(bank.get("Variations").numElems):
+            Variation=Stub()
+            Variations.append(Variation)
+            memchnk=bank.get("Variations").get("MemoryChunkIndex").values[i]
+            stmchnk=bank.get("Variations").get("StreamChunkIndex").values[i]
+            Variation.ChunkIndex = memchnk>>1 if memchnk&1 else stmchnk>>1
+            Variation.FirstSegmentIndex=bank.get("Variations").get("FirstSegmentIndex").values[i]
+            Variation.SegmentCount=bank.get("Variations").get("SegmentCount").values[i]
+
+            Variation.Segments=Segments[Variation.FirstSegmentIndex:Variation.FirstSegmentIndex+Variation.SegmentCount]
+            Variation.ChunkId=Chunks[Variation.ChunkIndex].ChunkId
+            Variation.ChunkSize=Chunks[Variation.ChunkIndex].ChunkSize
+
+            #find the appropriate index
+            #the index from the Variations array can get large very fast
+            #instead, make my own index starting from 0 for every chunkIndex
+            if Variation.ChunkIndex in histogram: #has been used previously already
+                Variation.Index=histogram[Variation.ChunkIndex]
+                histogram[Variation.ChunkIndex]+=1
+            else:
+                Variation.Index=0
+                histogram[Variation.ChunkIndex]=1
+
+        self.extractSoundVariations(Chunks,Variations)
+
+    def extractSoundVariations(self,Chunks,Variations):
         #everything is laid out neatly now
         #Variation fields: ChunkId, ChunkSize, Index, ChunkIndex, SeekTablesSize, FirstLoopSegmentIndex, LastLoopSegmentIndex, Segments
         #Variation.Segments fields: SamplesOffset, SeekTableOffset, SegmentLength
@@ -685,41 +725,6 @@ class Dbx:
 
         for key in ChunkHandles:
             ChunkHandles[key].close()
-
-    def extractNewWaveAsset(self):
-        print(self.trueFilename)
-
-        Chunks=self.prim.get("Chunks").value.fields
-        for i in range(len(Chunks)):
-            field=Chunks[i]
-            ChunkId=field.value.get("ChunkId").value
-            ChunkSize=field.value.get("ChunkSize").value
-            currentChunkName=self.findChunk(ChunkId)
-            if not currentChunkName:
-                continue
-
-            #Some files have a seek table at the start and I don't know how to find out its size yet.
-            #There's a value that appears to be related to size at 0x08, not sure how it works.
-            if self.prim.get("IsSeekable").value==True:
-                print("TODO: Chunk %s has seek table, size unknown" % ChunkId.format())
-                continue
-
-            f=open(currentChunkName,"rb")
-
-            #Each chunk can contain multiple sounds going one after another, these are presumably variations.
-            #Collect offsets of each sound.
-            soundOffsets=self.collectSPS(f,ChunkSize)
-
-            for j in range(len(soundOffsets)):
-                offset=soundOffsets[j]
-                target=os.path.join(self.outputFolder,self.trueFilename)
-                if len(Chunks)>1 or len(soundOffsets)>1:
-                    target+=" "+str(i)+" "+str(j)
-                target+=".sps"
-
-                self.extractSPS(f,offset,target)
-
-            f.close()
 
     def extractHarmonyAsset(self):
         print(self.trueFilename)

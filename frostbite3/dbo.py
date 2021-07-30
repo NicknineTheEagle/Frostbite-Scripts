@@ -88,6 +88,10 @@ class Guid:
         num1,num2,num3=unpacker("IHH",data[0:8])
         num4=unpackBE("Q",data[8:16])[0]
         self.val=num1,num2,num3,num4
+    def frombytes(data,bigEndian):
+        #Hack to init Guid from memory data.
+        f=io.BytesIO(data)
+        return Guid(f,bigEndian)
     def __eq__(self,other):
         return self.val==other.val
     def __ne__(self,other):
