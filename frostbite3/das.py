@@ -6,6 +6,7 @@ import ebx
 import io
 import os
 from struct import pack,unpack
+import res
 
 def readStringBuffer(f,len):
     result=b""
@@ -83,6 +84,7 @@ def dump(tocPath,outPath):
                 ebx.addEbxGuid(path,ebxPath)
 
         for entry in bundle.get("res",list()): #name sha1 size originalSize resRid resType resMeta
+            res.addToResTable(entry.get("resRid"),entry.get("name"),entry.get("resType"),entry.get("resMeta"))
             path=os.path.join(resPath,entry.get("name")+".res")
             payload.casBundlePayload(entry,path,entry.get("originalSize"))
 

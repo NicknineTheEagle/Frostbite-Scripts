@@ -67,6 +67,7 @@ def dump(tocPath,baseTocPath,outPath):
                     ebx.addEbxGuid(path,ebxPath)
 
             for entry in bundle.get("res",list()): #name sha1 size originalSize resRid resType resMeta
+                res.addToResTable(entry.get("resRid"),entry.get("name"),entry.get("resType"),entry.get("resMeta"))
                 path=os.path.join(resPath,entry.get("name")+res.getResExt(entry.get("resType")))
                 writePayload(entry,path,False)
 
@@ -113,6 +114,7 @@ def dump(tocPath,baseTocPath,outPath):
                     ebx.addEbxGuid(path,ebxPath)
 
             for entry in bundle.res:
+                res.addToResTable(entry.resRid,entry.name,entry.resType,entry.resMeta)
                 path=os.path.join(resPath,entry.name+res.getResExt(entry.resType))
                 writePayload(entry,path,sourcePath)
 
@@ -253,10 +255,10 @@ if not os.path.isdir(targetDirectory):
     print("Nothing was extracted, did you set input path correctly?")
     sys.exit(1)
 
-#Write GUID table.
 print("Writing EBX GUID table...")
 ebx.writeGuidTable(targetDirectory)
 
-res.writeUnkResTypes(targetDirectory)
+print ("Writing RES table...")
+res.writeResTable(targetDirectory)
 
 payload.zstdCleanup()

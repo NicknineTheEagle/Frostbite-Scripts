@@ -21,8 +21,6 @@ inputFolder=os.path.join(ebxFolder,inputFolder)
 
 print("Loading GUID table...")
 ebx.loadGuidTable(dumpDirectory)
-print ("Loading RES table...")
-res.loadResTable(dumpDirectory)
 
 for dir0, dirs, ff in os.walk(inputFolder):
     for fname in ff:

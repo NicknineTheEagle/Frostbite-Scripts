@@ -9,6 +9,7 @@ from struct import unpack,pack
 import shutil
 import pickle
 from dbo import Guid
+import res
 
 def unpackLE(typ,data): return unpack("<"+typ,data)
 def unpackBE(typ,data): return unpack(">"+typ,data)
@@ -508,10 +509,11 @@ class Dbx:
                 self.writeField(f2,field,lvl," "+field.value.hex().upper())
 
             elif typ==FieldType.ResourceRef:
-                #val=field.value[::-1].hex()
-                #val=val[:16]+"/"+val[16:]
-                #self.writeField(f2,field,lvl," "+val)
-                self.writeField(f2,field,lvl," "+str(field.value))
+                resRid=field.value
+                towrite=" "+str(resRid)
+                if field.value in res.resTable:
+                    towrite+=" # "+res.resTable[resRid].name
+                self.writeField(f2,field,lvl,towrite)
 
             else:
                 self.writeField(f2,field,lvl," "+str(field.value))
@@ -522,10 +524,11 @@ class Dbx:
     def writeInstance(self,f,cmplx,text):
         f.write(cmplx.desc.name+" "+text+"\n")
 
-    def extractAssets(self,chunkFolder,chunkFolder2,outputFolder):
+    def extractAssets(self,chunkFolder,chunkFolder2,resFolder,outputFolder):
         self.chunkFolder=chunkFolder
         self.chunkFolder2=chunkFolder2
         self.outputFolder=outputFolder
+        self.resFolder=resFolder
 
         if self.prim.desc.name=="SoundWaveAsset": self.extractSoundWaveAsset()
         elif self.prim.desc.name=="NewWaveAsset": self.extractNewWaveAsset()

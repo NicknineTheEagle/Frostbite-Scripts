@@ -345,11 +345,9 @@ if not os.path.isdir(targetDirectory):
     print("Nothing was extracted, did you set input path correctly?")
     sys.exit(1)
 
-#Write GUID table.
 print("Writing EBX GUID table...")
 ebx.writeGuidTable(targetDirectory)
 
-# Write RES table.
 print ("Writing RES table...")
 res.writeResTable(targetDirectory)
 

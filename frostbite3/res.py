@@ -1,7 +1,9 @@
 import os
 import re
+import pickle
 
 resTypes=dict()
+resTable=dict()
 unkResTypes=list()
 
 def loadResNames():
@@ -36,10 +38,44 @@ def getResExt(typ):
         return ".res_%08x" % typ
     return "."+resTypes[typ]
 
-def writeUnkResTypes(dumpFolder):
+class ResInfo:
+    def __init__(self,name,resType,resMeta):
+        self.name=name
+        self.resType=resType
+        self.resMeta=resMeta
+    def getResFilename(self):
+        return self.name+getResExt(self.resType)
+
+def addToResTable(resRid,name,resType,resMeta):
+    if resType not in resTypes and resType not in unkResTypes:
+        unkResTypes.append(resType)
+
+    #Null resRid can't be looked up.
+    if resRid!=0:
+        resTable[resRid]=ResInfo(name,resType,resMeta)
+
+def writeResTable(dumpFolder):
+    f=open(os.path.join(dumpFolder,"resTable.bin"),"wb")
+    pickle.dump(resTable,f)
+    f.close()
+
     #Log any res types we don't know names for yet.
     if len(unkResTypes)!=0:
         f=open(os.path.join(dumpFolder,"unknownResTypes.txt"),"w")
         for typ in unkResTypes:
             f.write("0x%08x\n" % typ)
         f.close()
+
+def loadResTable(dumpFolder):
+    global resTable
+    path=os.path.join(dumpFolder,"resTable.bin")
+    if not os.path.isfile(path):
+        print("WARNING: RES table is missing, it is required to link to RES files!")
+        return
+
+    f=open(path,"rb")
+    resTable=pickle.load(f)
+    f.close()
+
+    #Load RES names, too.
+    loadResNames()
