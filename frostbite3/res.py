@@ -1,7 +1,7 @@
 import os
 import re
 import pickle
-import dbo
+from dbo import Guid
 
 resTypes=dict()
 resTable=dict()
@@ -90,11 +90,16 @@ def cacheNewWaveResources(bigEndian):
     if newWavesCached:
         return
 
+    if len(resTable)==0:
+        print("Falling back to simple NewWaveResource finding method, may not work properly.")
+        newWavesCached=True
+        return
+
     print("Caching NewWaveResource GUIDs...")
     typ=hasher("newwaveresource")
     for val in resTable.values():
         if val.resType==typ:
-            guid=dbo.Guid.frombytes(val.resMeta,bigEndian)
+            guid=Guid.frombytes(val.resMeta,bigEndian)
             newWaves[guid]=val
 
     newWavesCached=True

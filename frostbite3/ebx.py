@@ -640,12 +640,17 @@ class Dbx:
         #Cache GUIDs for lookup the first time we encounter NewWaveAsset.
         res.cacheNewWaveResources(self.bigEndian)
 
-        if self.prim.guid not in res.newWaves:
-            print("NewWaveResource not found in table for EBX: " + self.trueFilename)
-            return
+        if self.prim.guid in res.newWaves:
+            resInfo=res.newWaves[self.prim.guid]
+            resPath=os.path.join(self.resFolder,resInfo.getResFilename())
+        else:
+            if len(res.resTable)!=0:
+                print("NewWaveResource not found in table for EBX: " + self.trueFilename)
+                return
 
-        resInfo=res.newWaves[self.prim.guid]
-        resPath=os.path.join(self.resFolder,resInfo.getResFilename())
+            #Attempt to fall back to simple name building for compatibility with scripts for newer layouts.
+            resPath=os.path.join(self.resFolder,self.trueFilename.lower()+".NewWaveResource")
+
         if not os.path.isfile(lp(resPath)):
             print("RES does not exist: " + os.path.relpath(resPath,self.resFolder))
             return
