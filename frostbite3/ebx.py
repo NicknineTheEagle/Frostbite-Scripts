@@ -234,7 +234,7 @@ class Dbx:
             self.version=2
             self.bigEndian=True
         else:
-            raise ValueError("The file is not ebx: "+relPath)
+            raise ValueError("The file is not ebx: "+path)
 
         self.unpack=unpackBE if self.bigEndian else unpackLE
         self.ebxRoot=ebxRoot

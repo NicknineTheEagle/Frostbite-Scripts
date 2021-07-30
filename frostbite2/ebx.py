@@ -201,7 +201,7 @@ class Dbx:
         magic=f.read(4)
         if magic==b"\xCE\xD1\xB2\x0F":   self.bigEndian=False
         elif magic==b"\x0F\xB2\xD1\xCE": self.bigEndian=True
-        else: raise ValueError("The file is not ebx: "+relPath)
+        else: raise ValueError("The file is not ebx: "+path)
 
         self.unpack=unpackBE if self.bigEndian else unpackLE
         self.ebxRoot=ebxRoot
