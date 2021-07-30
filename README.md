@@ -21,15 +21,15 @@ In each directory, you'll find the following scripts:
 
 To eleborate on Frostbite asset structure, all data is contained inside superbundles (SB files). Each superbundle contains bundles and each bundle, in turn, contains the following file types:
  * ebx - these are so called asset nodes; this format is the cornerstone of Frostbite, they're used to reference the actual game assets stored inside res and chunk files as well as store game scripts, configurations, etc
- * res - these contain assets like meshes, animations, shaders, texture headers, sometimes movies
- * chunk - these contain assets like textures, movies, sounds, etc
+ * res - these contain assets like mesh headers, animations, shaders, texture headers, sometimes movies
+ * chunk - these contain assets like meshes, textures, movies, sounds, etc
 
 Additionally, superbundle itself can also contain chunks.
 
 So if you want to get the game assets you need to take the EBX files and use them to find your data inside the chunks. This is what ebxtoasset script does for you. Frostbite has many different EBX asset types, here are the most relevant ones:
  * SoundWaveAsset - general sound asset, references chunks containing SPS files (standard EA audio format they've been using since 2010)
- * NewWaveAsset, LocalizedWaveAsset - new sound asset types introduced in 2017, same as SoundWaveAsset but simplified
- * TextureAsset - references texture header (ITexture) RES file which lists chunks containing raw image data for each mipmap level
+ * NewWaveAsset, LocalizedWaveAsset - new sound asset types introduced in 2017, similar to SoundWaveAsset but all data about variations and segments is stored in NewWaveResource RES file
+ * TextureAsset - references texture header (DxTexture, Texture, ...) RES file which references chunk containing raw image data for each mipmap level
  * SkinnedMeshAsset, RigidMeshAsset, CompositeMeshAsset, ... - references mesh set header (MeshSet) RES file which lists chunks containing meshes for each LOD
 
 CREDITS:
