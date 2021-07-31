@@ -32,9 +32,9 @@ class Bundle:
         self.resEntries=[BundleEntry(unpack(">3I",f.read(12))) for i in range(self.header.numRes)]
         #ebx are done, but res have extra content
         for entry in self.resEntries:
-            entry.resType=unpack(">I",f.read(4))[0] #e.g. IT for ITexture
+            entry.resType=unpack(">I",f.read(4))[0] #FNV-1 hash of resource type's name
         for entry in self.resEntries:
-            entry.resMeta=f.read(16) #often 16 nulls (always null for IT)
+            entry.resMeta=f.read(16) #often 16 nulls (always null for textures)
 
         self.chunkEntries=[Chunk(f) for i in range(self.header.numChunks)]
 
@@ -43,7 +43,7 @@ class Bundle:
         #Then again, noncas is crazy so this is only true for cas. There is one chunkMeta element (consisting of h32 and meta) for every chunk.
         #h32 is the FNV-1 hash applied to a string. For some audio files for example, the files are accessed via ebx files which of course have a name.
         #The hash of this name in lowercase is the h32 found in the chunkMeta. The same hash is also found in the ebx file itself at the keyword NameHash
-        #For ITextures, the h32 is found in the corresponding res file. The res file also contains a name and once again the hash of this name is the h32.
+        #For textures, the h32 is found in the corresponding res file. The res file also contains a name and once again the hash of this name is the h32.
         #meta for textures usually contains firstMip 0/1/2.
         if self.header.numChunks>0: self.chunkMeta=dbo.DbObject(f)
         for i in range(self.header.numChunks):

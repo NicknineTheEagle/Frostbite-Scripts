@@ -190,9 +190,9 @@ class Bundle: #noncas, read metadata only and seek to the start of the payload s
         self.res=[BundleEntry(unpack(">2I",f.read(8))) for i in range(self.header.resCount)]
 
         #ebx are done, but res have extra content
-        for entry in self.res: entry.resType=unpack(">I",f.read(4))[0] #as ascii: E.g. \IT. for ITexture
-        for entry in self.res: entry.resMeta=f.read(16) #often 16 nulls (always null for IT)
-        for entry in self.res: entry.resRid=unpack(">Q",f.read(8))[0] #I think the ebx use these to import res (bf3 used paths)
+        for entry in self.res: entry.resType=unpack(">I",f.read(4))[0] #FNV-1 hash of resource type's name
+        for entry in self.res: entry.resMeta=f.read(16) #often 16 nulls (always null for textures)
+        for entry in self.res: entry.resRid=unpack(">Q",f.read(8))[0] #ebx use these to import res (bf3 used names)
 
         #chunks
         self.chunks=[Chunk(f) for i in range(self.header.chunkCount)]
