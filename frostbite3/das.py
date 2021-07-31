@@ -58,7 +58,7 @@ def prepareDir(targetPath):
 
 def dump(tocPath,outPath):
     toc=dbo.readToc(tocPath)
-    if not (toc.getSubEntry("bundles") or toc.get("chunks")): return #there's nothing to extract (the sb might not even exist)
+    if not (toc.getSubObject("bundles") or toc.get("chunks")): return #there's nothing to extract (the sb might not even exist)
 
     sbPath=tocPath[:-3]+"sb"
     sb=open(sbPath,"rb")
@@ -71,7 +71,7 @@ def dump(tocPath,outPath):
 
     if not toc.get("das"): raise Exception("Non-DAS superbundle found in NFS: Edge.")
 
-    bundles=toc.getSubEntry("bundles") #names offsets sizes (list sizes should be same)
+    bundles=toc.getSubObject("bundles") #names offsets sizes (list sizes should be same)
     offsets=bundles.get("offsets")
 
     for offset in offsets:
