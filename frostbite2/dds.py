@@ -114,7 +114,7 @@ def remapFormat(fmt,val):
         fmt.TextureFormat_NormalDXN:        (0x04,b"ATI2"),
         fmt.TextureFormat_NormalDXT1:       (0x04,b"DXT1"),
         fmt.TextureFormat_NormalDXT5:       (0x04,b"DXT5"),
-        fmt.TextureFormat_NormalDXT5RGA:    (0x04,b"ATI2"),
+        fmt.TextureFormat_NormalDXT5RGA:    (0x04,b"DXT5"),
     }
 
     if val not in formatMap or val==0xFFFFFFFF:
