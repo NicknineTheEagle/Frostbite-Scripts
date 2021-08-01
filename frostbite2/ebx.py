@@ -1,8 +1,6 @@
 #Ebx format is the cornerstone of Frostbite, it's an asset node of sorts used to reference actual game assets
 #stored in chunk and res files as well as define scripts and configs for the game.
 #Ebx is machine endian.
-import string
-import sys
 import os
 import copy
 from struct import unpack,pack
