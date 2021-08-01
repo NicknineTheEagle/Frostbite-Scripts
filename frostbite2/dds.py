@@ -153,6 +153,7 @@ class TextureFormat_v10:
     TextureFormat_D32F = 0x1B
     TextureFormat_ABGR32 = 0x1C
     TextureFormat_GR32F = 0x1D
+    TextureFormat_A2R10G10B10 = 0x1E
 
     TextureFormat_DXT1A = 0xFFFFFFFF
 
@@ -192,6 +193,7 @@ class TextureFormat_v110:
     TextureFormat_D32F = 0x1C
     TextureFormat_ABGR32 = 0x1D
     TextureFormat_GR32F = 0x1E
+    TextureFormat_A2R10G10B10 = 0x1F
 
     def __init__(self):
         pass
