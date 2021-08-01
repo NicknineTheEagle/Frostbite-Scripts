@@ -85,7 +85,7 @@ def dump(tocPath,outPath):
 
         for entry in bundle.get("res",list()): #name sha1 size originalSize resRid resType resMeta
             res.addToResTable(entry.get("resRid"),entry.get("name"),entry.get("resType"),entry.get("resMeta"))
-            path=os.path.join(resPath,entry.get("name")+".res")
+            path=os.path.join(resPath,entry.get("name")+res.getResExt(entry.get("resType")))
             payload.casBundlePayload(entry,path,False)
 
         for entry in bundle.get("chunks",list()): #id sha1 size logicalOffset logicalSize chunkMeta::meta
