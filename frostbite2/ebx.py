@@ -8,6 +8,7 @@ import shutil
 import pickle
 from dbo import Guid
 import res
+import dds
 
 def unpackLE(typ,data): return unpack("<"+typ,data)
 def unpackBE(typ,data): return unpack(">"+typ,data)
@@ -677,30 +678,12 @@ class Dbx:
         tex=Texture(self,f)
         f.close()
 
-        formatMap={ 
-            0x0a: {
-                #Standard FB2
-                0x00 : b"DXT1", #TextureFormat_DXT1
-                0x02 : b"DXT5", #TextureFormat_DXT5
-                0x11 : b"ATI2", #TextureFormat_NormalDXN
-                0x12 : b"DXT1", #TextureFormat_NormalDXT1
-                0x13 : b"DXT5", #TextureFormat_NormalDXT5
-            },
-            0x6e: {
-                #Medal of Honor: Warfighter
-                0x00 : b"DXT1", #TextureFormat_DXT1
-                0x02 : b"DXT5", #TextureFormat_DXT5
-                0x12 : b"ATI2", #TextureFormat_NormalDXN
-                0x13 : b"DXT1", #TextureFormat_NormalDXT1
-                0x14 : b"DXT5", #TextureFormat_NormalDXT5
-            },
-        }
-
-        if tex.version not in formatMap:
+        enum=dds.getFormatEnum(tex.version)
+        if not enum:
             print("Unsupported version %d" % tex.version)
             return
 
-        if tex.format not in formatMap[tex.version]:
+        if not dds.remapFormat(enum,tex.format):
             print("Unsupported compression format %d" % tex.format)
             return
 
@@ -718,72 +701,10 @@ class Dbx:
         f.close()
 
         #Build DDS header from the data in FB texture header.
-        class DDS_HEADER:
-            def __init__(self,tex):
-                self.dwMagic=b"DDS "
-                self.dwSize=124
-                self.dwFlags=0x1|0x2|0x4|0x1000
-                if tex.depth>1: self.dwFlags|=0x800000
-                if tex.numMipMaps>1: self.dwFlags|=0x20000
-                self.dwHeight=tex.height
-                self.dwWidth=tex.width
-                self.dwPitchOrLinearSize=0
-                self.dwDepth=tex.depth
-                self.dwMipMapCount=tex.numMipMaps
-                self.dwReserved1=bytes(11*0x04)
-                self.ddspf=self.DDS_PIXELFORMAT(tex)
-                self.dwCaps=0x1000
-                if tex.depth>1: self.dwCaps|=0x8
-                if tex.numMipMaps>1: self.dwCaps|=0x8|0x400000
-                self.dwCaps2=0
-                if tex.type==1:
-                    self.dwCaps2|=0x200
-                    for i in range(6):
-                        self.dwCaps2|=(1<<(10+i))
-                elif tex.type==2:
-                    self.dwCaps2|=0x200000
-                self.dwCaps3=0
-                self.dwCaps4=0
-                self.dwReserved2=0
-
-            def encode(self):
-                data=pack("<4s7I44s",
-                            self.dwMagic,
-                            self.dwSize,
-                            self.dwFlags,
-                            self.dwHeight,
-                            self.dwWidth,
-                            self.dwPitchOrLinearSize,
-                            self.dwDepth,
-                            self.dwMipMapCount,
-                            self.dwReserved1)
-                data+=self.ddspf.encode()
-                data+=pack("<5I",
-                           self.dwCaps,
-                           self.dwCaps2,
-                           self.dwCaps3,
-                           self.dwCaps4,
-                           self.dwReserved2)
-
-                return data
-
-            class DDS_PIXELFORMAT:
-                def __init__(self,tex):
-                    self.dwSize=32
-                    self.dwFlags=0x04
-                    self.dwFourCC=formatMap[tex.version][tex.format]
-
-                def encode(self):
-                    return pack("<2I4s5I",
-                                self.dwSize,
-                                self.dwFlags,
-                                self.dwFourCC,
-                                0,0,0,0,0)
-
-        dds=DDS_HEADER(tex)
+        ddsHdr=dds.DDS_HEADER(tex)
 
         target=os.path.join(self.outputFolder,self.trueFilename+".dds")
         f=open2(target,"wb")
-        f.write(dds.encode())
+        f.write(ddsHdr.encode())
         f.write(texData)
         f.close()
