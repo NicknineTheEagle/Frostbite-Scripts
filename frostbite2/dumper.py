@@ -58,28 +58,26 @@ def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
             bundle=dbo.DbObject(sb)
 
             for entry in bundle.get("ebx",list()): #name sha1 size originalSize
+                compressed=(entry.get("size")!=entry.get("originalSize"))
                 path=os.path.join(ebxPath,entry.get("name")+".ebx")
-                casBundlePayload(entry,path,False)
+                casBundlePayload(entry,path,compressed)
                 ebx.addEbxGuid(path,ebxPath)
 
             for entry in bundle.get("dbx",list()): #name sha1 size originalSize
                 if entry.get("idata"): #dbx appear only idata if at all, they are probably deprecated and were not meant to be shipped at all.
                     path=os.path.join(dbxPath,entry.get("name")+".dbx")
                     out=open2(path,"wb")
-                    if entry.get("size")==entry.get("originalSize"):
-                        out.write(entry.get("idata"))
-                    else:
-                        out.write(zlibIdata(entry.get("idata")))
+                    out.write(zlibIdata(entry.get("idata")))
                     out.close()
 
             for entry in bundle.get("res",list()): #name sha1 size originalSize resType resMeta
                 res.addToResTable(entry.get("name"),entry.get("resType"),entry.get("resMeta"))
                 path=os.path.join(resPath,entry.get("name")+res.getResExt(entry.get("resType")))
-                casBundlePayload(entry,path,False)
+                casBundlePayload(entry,path,True)
 
             for entry in bundle.get("chunks",list()): #id sha1 size chunkMeta::h32 chunkMeta::meta
                 path=os.path.join(chunkPath,entry.get("id").format()+".chunk")
-                casBundlePayload(entry,path,True)
+                casBundlePayload(entry,path,entry.get("id").isChunkCompressed())
 
         #deal with cas chunks defined in the toc.
         for entry in toc.get("chunks"): #id sha1
@@ -135,19 +133,19 @@ def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
                 sb2=sb
 
             for entry in bundle.ebxEntries:
+                compressed=(entry.size!=entry.originalSize)
                 path=os.path.join(ebxPath,entry.name+".ebx")
-                noncasBundlePayload(sb2,entry,path)
+                noncasBundlePayload(sb2,entry,path,compressed)
                 ebx.addEbxGuid(path,ebxPath)
 
             for entry in bundle.resEntries:
                 res.addToResTable(entry.name,entry.resType,entry.resMeta)
-                originalSize=entry.originalSize
                 path=os.path.join(resPath,entry.name+res.getResExt(entry.resType))
-                noncasBundlePayload(sb2,entry,path)
+                noncasBundlePayload(sb2,entry,path,True)
 
             for entry in bundle.chunkEntries:
                 path=os.path.join(chunkPath,entry.id.format()+".chunk")
-                noncasBundlePayload(sb2,entry,path)
+                noncasBundlePayload(sb2,entry,path,entry.id.isChunkCompressed())
 
         #deal with noncas chunks defined in the toc
         for entry in toc.get("chunks"): #id offset size
@@ -161,28 +159,17 @@ def dump(tocPath,outPath,baseTocPath=None,commonDatPath=None):
 
 
 
-def casBundlePayload(entry,outPath,isChunk):
+def casBundlePayload(entry,outPath,compressed):
     if os.path.isfile(lp(outPath)): return
 
-    if isChunk:
-        compressed=entry.get("id").isChunkCompressed()
-    else:
-        compressed=True if entry.get("size")!=entry.get("originalSize") else False #I cannot tell for certain if this is correct. I do not have any negative results though.
-
     out=open2(outPath,"wb")
-    if entry.get("idata"):
-        if compressed: out.write(zlibIdata(entry.get("idata")))
-        else:          out.write(entry.get("idata"))
-    else:
-        catEntry=cat[entry.get("sha1")]
-        cas=open(catEntry.path,"rb")
-        cas.seek(catEntry.offset)
-        if compressed: out.write(zlibb(cas,catEntry.size))
-        else:          out.write(cas.read(catEntry.size))
-        cas.close()
+    catEntry=cat[entry.get("sha1")]
+    cas=open(catEntry.path,"rb")
+    cas.seek(catEntry.offset)
+    if compressed: out.write(zlibb(cas,catEntry.size))
+    else:          out.write(cas.read(catEntry.size))
+    cas.close()
     out.close()
-
-    return True
 
 def casChunkPayload(entry,outPath):
     if os.path.isfile(lp(outPath)): return
@@ -198,12 +185,12 @@ def casChunkPayload(entry,outPath):
     cas.close()
     out.close()
 
-def noncasBundlePayload(sb,entry,outPath):
+def noncasBundlePayload(sb,entry,outPath,compressed):
     if os.path.isfile(lp(outPath)): return
 
     sb.seek(entry.offset)
     out=open2(outPath,"wb")
-    if entry.compressed:
+    if compressed:
         out.write(zlibb(sb,entry.size))
     else:
         out.write(sb.read(entry.size))
@@ -223,7 +210,9 @@ def noncasChunkPayload(sb,entry,outPath):
 #zlib:
 #Compressed files are split into blocks which are then zlibbed individually (prefixed with compressed and uncompressed size)
 #and finally glued together again. Uncompressed files, on the other hand, are not blocked, they are just the payload.
-#For EBX and RES, size!=originalSize means compressed payload.
+#EBX are uncompressed in BF3 and NFS:TR and compressed in MOH:WF and AOT:DC. Since EBX have a lot of text and a lot of zeroes
+#they are guaranteed to be smaller when compressed so we can safely check if size!=originalSize.
+#RES are always compressed.
 #For chunks, the last bit in GUID is set for compressed payload.
 
 def zlibb(f,size):

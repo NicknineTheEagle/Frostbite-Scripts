@@ -81,7 +81,6 @@ class BundleEntry: #3 uint32 + 1 string
         self.offsetString=values[0] #in the name strings section
         self.size=values[1] #total size of the payload (for zlib including the two ints before the zlib)
         self.originalSize=values[2] #uncompressed size (for zlib after decompression and ignoring the two ints)
-        self.compressed=True if self.size!=self.originalSize else False
         #note: for zlib the uncompressed size is saved in both the file and the archive
         #      for zlib the compressed size in the file is the (size in the archive)-8
 
@@ -93,7 +92,6 @@ class Chunk:
         self.rangeEnd=unpack(">I",f.read(4))[0] #total size of the payload is rangeEnd-rangeStart
         self.logicalOffset=unpack(">I",f.read(4))[0]
         self.size=self.rangeEnd-self.rangeStart
-        self.compressed=self.id.isChunkCompressed()
         #rangeStart, rangeEnd and logicalOffset are for textures. Non-texture chunks have rangeStart=logicalOffset=0 and rangeEnd being the size of the payload.
         #For cas bundles: rangeEnd is always exactly the size of compressed payload (which is specified too).
         #Furthermore for cas, rangeStart defines the point at which the mipmap number specified by chunkMeta::meta is reached in the compressed payload.
