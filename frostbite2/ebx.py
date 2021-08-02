@@ -116,10 +116,13 @@ class Enumeration:
 class Complex:
     def __init__(self,desc):
         self.desc=desc
-    def get(self,name,critical=True):
+    def get(self,name,critical=True,defaultVal=None):
         for field in self.fields:
             if field.desc.name==name:
-                return field
+                if field.desc.getFieldType()==FieldType.Array:
+                    return field.value.fields
+                else:
+                    return field.value
 
         #Go up the inheritance chain.
         for field in self.fields:
@@ -129,7 +132,7 @@ class Complex:
         if critical:
             raise Exception("Could not find field with name: "+name)
         else:
-            return None
+            return defaultVal
 
 class Field:
     def __init__(self,desc):
@@ -553,33 +556,33 @@ class Dbx:
         histogram=dict() #count the number of times each chunk is used by a variation to obtain the right index
 
         Chunks=[]
-        for i in self.prim.get("Chunks").value.fields:
+        for i in self.prim.get("Chunks"):
             chnk=Stub()
             Chunks.append(chnk)
-            chnk.ChunkId=i.value.get("ChunkId").value
-            chnk.ChunkSize=i.value.get("ChunkSize").value
+            chnk.ChunkId=i.value.get("ChunkId")
+            chnk.ChunkSize=i.value.get("ChunkSize")
 
-        variations=[i.link(self) for i in self.prim.get("Variations").value.fields]
+        variations=[i.link(self) for i in self.prim.get("Variations")]
 
         Variations=[]
 
         for var in variations:
             Variation=Stub()
             Variations.append(Variation)
-            Variation.ChunkIndex=var.get("ChunkIndex").value
-##            Variation.SeekTablesSize=var.get("SeekTablesSize").value
-            Variation.FirstLoopSegmentIndex=var.get("FirstLoopSegmentIndex").value
-            Variation.LastLoopSegmentIndex=var.get("LastLoopSegmentIndex").value
+            Variation.ChunkIndex=var.get("ChunkIndex")
+##            Variation.SeekTablesSize=var.get("SeekTablesSize")
+            Variation.FirstLoopSegmentIndex=var.get("FirstLoopSegmentIndex")
+            Variation.LastLoopSegmentIndex=var.get("LastLoopSegmentIndex")
 
 
             Variation.Segments=[]
-            segs=var.get("Segments").value.fields
+            segs=var.get("Segments")
             for seg in segs:
                 Segment=Stub()
                 Variation.Segments.append(Segment)
-                Segment.SamplesOffset = seg.value.get("SamplesOffset").value
-                Segment.SeekTableOffset = seg.value.get("SeekTableOffset").value
-                Segment.SegmentLength = seg.value.get("SegmentLength").value
+                Segment.SamplesOffset = seg.value.get("SamplesOffset")
+                Segment.SeekTableOffset = seg.value.get("SeekTableOffset")
+                Segment.SegmentLength = seg.value.get("SegmentLength")
 
             Variation.ChunkId=Chunks[Variation.ChunkIndex].ChunkId
             Variation.ChunkSize=Chunks[Variation.ChunkIndex].ChunkSize
@@ -630,22 +633,22 @@ class Dbx:
     def extractGenericSoundAsset(self,ext):
         print(self.trueFilename)
 
-        Chunks=self.prim.get("Chunks").value.fields
+        Chunks=self.prim.get("Chunks")
         for i in range(len(Chunks)):
             field=Chunks[i]
-            ChunkId=field.value.get("ChunkId").value
-            ChunkSize=field.value.get("ChunkSize").value
+            ChunkId=field.value.get("ChunkId")
+            ChunkSize=field.value.get("ChunkSize")
             self.extractChunk(ChunkId,ext,i,len(Chunks))
 
     def extractMovieAsset(self):
         print(self.trueFilename)
-        isStreamed=self.prim.get("StreamMovieFile",False)
+        isStreamed=self.prim.get("StreamMovieFile",False,True)
 
-        if isStreamed==None or isStreamed.value==True:
-            chnk=self.prim.get("ChunkGuid").value
+        if isStreamed:
+            chnk=self.prim.get("ChunkGuid")
             self.extractChunk(chnk,".vp6")
         else:
-            resName=self.prim.get("ResourceName").value
+            resName=self.prim.get("ResourceName")
             self.extractRes(resName,".vp6")
 
     def extractTextureAsset(self):
@@ -657,7 +660,7 @@ class Dbx:
         #Read FB texture header.
         class Texture:
             def __init__(self,ebx,f):
-                hdr=ebx.unpack("4I4HH2B16s15I2I16s",f.read(0x80))
+                hdr=ebx.unpack("4I4H2s2B16s15I2I16s",f.read(0x80))
                 self.version=hdr[0]
                 self.type=hdr[1]
                 self.format=hdr[2]
@@ -675,7 +678,7 @@ class Dbx:
                 self.nameHash=hdr[28]
                 self.texGroup=hdr[29].decode().split("\0",1)[0]
 
-        f=open(resName,"rb")
+        f=open2(resName,"rb")
         tex=Texture(self,f)
         f.close()
 

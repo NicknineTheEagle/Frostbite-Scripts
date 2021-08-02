@@ -136,10 +136,13 @@ class InstanceIndex: #Used for instances with no GUID
 class Complex:
     def __init__(self,desc):
         self.desc=desc
-    def get(self,name,critical=True):
+    def get(self,name,critical=True,defaultVal=None):
         for field in self.fields:
             if field.desc.name==name:
-                return field
+                if field.desc.getFieldType()==FieldType.Array:
+                    return field.value.fields
+                else:
+                    return field.value
 
         #Go up the inheritance chain.
         for field in self.fields:
@@ -149,7 +152,7 @@ class Complex:
         if critical:
             raise Exception("Could not find field with name: "+name)
         else:
-            return None
+            return defaultVal
 
 class Field:
     def __init__(self,desc):
@@ -594,27 +597,27 @@ class Dbx:
         histogram=dict() #count the number of times each chunk is used by a variation to obtain the right index
 
         Chunks=[]
-        for i in self.prim.get("Chunks").value.fields:
+        for i in self.prim.get("Chunks"):
             chnk=Stub()
             Chunks.append(chnk)
-            chnk.ChunkId=i.value.get("ChunkId").value
-            chnk.ChunkSize=i.value.get("ChunkSize").value
+            chnk.ChunkId=i.value.get("ChunkId")
+            chnk.ChunkSize=i.value.get("ChunkSize")
 
         Variations=[]
         Segments=[]
-        for seg in self.prim.get("Segments").value.fields:
+        for seg in self.prim.get("Segments"):
             Segment=Stub()
             Segments.append(Segment)
-            Segment.SamplesOffset=seg.value.get("SamplesOffset").value
-            Segment.SeekTableOffset=seg.value.get("SeekTableOffset").value
-            Segment.SegmentLength=seg.value.get("SegmentLength").value
+            Segment.SamplesOffset=seg.value.get("SamplesOffset")
+            Segment.SeekTableOffset=seg.value.get("SeekTableOffset")
+            Segment.SegmentLength=seg.value.get("SegmentLength")
 
-        for var in self.prim.get("RuntimeVariations").value.fields:
+        for var in self.prim.get("RuntimeVariations"):
             Variation=Stub()
             Variations.append(Variation)
-            Variation.ChunkIndex=var.value.get("ChunkIndex").value
-            Variation.FirstSegmentIndex=var.value.get("FirstSegmentIndex").value
-            Variation.SegmentCount=var.value.get("SegmentCount").value
+            Variation.ChunkIndex=var.value.get("ChunkIndex")
+            Variation.FirstSegmentIndex=var.value.get("FirstSegmentIndex")
+            Variation.SegmentCount=var.value.get("SegmentCount")
 
             Variation.Segments=Segments[Variation.FirstSegmentIndex:Variation.FirstSegmentIndex+Variation.SegmentCount]
             Variation.ChunkId=Chunks[Variation.ChunkIndex].ChunkId
@@ -732,31 +735,31 @@ class Dbx:
     def extractHarmonyAsset(self):
         print(self.trueFilename)
 
-        Chunks=self.prim.get("Chunks").value.fields
+        Chunks=self.prim.get("Chunks")
 
-        RamChunkIndex=self.prim.get("RamChunkIndex").value
+        RamChunkIndex=self.prim.get("RamChunkIndex")
         if RamChunkIndex!=0xff:
-            chnk=Chunks[RamChunkIndex].value.get("ChunkId").value
+            chnk=Chunks[RamChunkIndex].value.get("ChunkId")
             self.extractChunk(chnk,".sbr")
 
-        DebugChunkIndex=self.prim.get("DebugChunkIndex").value
+        DebugChunkIndex=self.prim.get("DebugChunkIndex")
         if DebugChunkIndex!=0xff:
-            chnk=Chunks[DebugChunkIndex].value.get("ChunkId").value
+            chnk=Chunks[DebugChunkIndex].value.get("ChunkId")
             self.extractChunk(chnk,".sbd")
 
-        StreamChunkIndex=self.prim.get("StreamChunkIndex").value
+        StreamChunkIndex=self.prim.get("StreamChunkIndex")
         if StreamChunkIndex!=0xff:
-            chnk=Chunks[StreamChunkIndex].value.get("ChunkId").value
+            chnk=Chunks[StreamChunkIndex].value.get("ChunkId")
             self.extractChunk(chnk,".sbs")
 
     def extractGenericSoundAsset(self,ext):
         print(self.trueFilename)
 
-        Chunks=self.prim.get("Chunks").value.fields
+        Chunks=self.prim.get("Chunks")
         for i in range(len(Chunks)):
             field=Chunks[i]
-            ChunkId=field.value.get("ChunkId").value
-            ChunkSize=field.value.get("ChunkSize").value
+            ChunkId=field.value.get("ChunkId")
+            ChunkSize=field.value.get("ChunkSize")
             self.extractChunk(ChunkId,ext,i,len(Chunks))
 
     def extractMovieAsset(self):
@@ -765,18 +768,18 @@ class Dbx:
         ext=""
         if self.prim.get("HasVp6",False)!=None:
             #Detect type.
-            if self.prim.get("HasVp6").value: ext=".vp6"
-            elif self.prim.get("HasVp8").value: ext=".webm"
+            if self.prim.get("HasVp6"): ext=".vp6"
+            elif self.prim.get("HasVp8"): ext=".webm"
             else: print("Unknown movie type")
         else:
             #Early version, VP6 only.
             ext=".vp6"
 
-        chnk=self.prim.get("ChunkGuid").value
+        chnk=self.prim.get("ChunkGuid")
         self.extractChunk(chnk,ext)
 
     def extractMovie2Asset(self):
         print(self.trueFilename)
 
-        chnk=self.prim.get("ChunkGuid").value
+        chnk=self.prim.get("ChunkGuid")
         self.extractChunk(chnk,".webm")
