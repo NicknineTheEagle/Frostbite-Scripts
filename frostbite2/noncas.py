@@ -1,9 +1,6 @@
 #Non-cas bundles are handled here.
 #Unlike toc files these are always big endian.
-import sys
-import os
 from struct import unpack,pack
-import zlib
 import dbo
 
 def readNullTerminatedString(f):
