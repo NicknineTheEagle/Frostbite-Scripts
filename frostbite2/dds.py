@@ -53,7 +53,6 @@ class DDS_HEADER:
 
 class DDS_PIXELFORMAT:
     def __init__(self,tex):
-        #print("Texture format %d" % tex.format)
         self.dwSize=32
         enum=getFormatEnum(tex.version)
         values=remapFormat(enum,tex.format)
@@ -93,6 +92,9 @@ def getFormatEnum(version):
     else:
         return None
 
+#Info on DDS_PIXELFORMAT struct presets taken from here:
+# https://github.com/microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexDDS.cpp
+# https://github.com/microsoft/DirectXTex/blob/master/DirectXTex/DDS.h
 def remapFormat(fmt,val):
     formatMap = {
         fmt.TextureFormat_DXT1:             (0x04,b"DXT1"),
@@ -122,6 +124,7 @@ def remapFormat(fmt,val):
 
     return formatMap[val]
 
+#Standard FB2 list, found in BF3 debug strings
 class TextureFormat_v10:
     TextureFormat_DXT1 = 0x0
     TextureFormat_DXT3 = 0x1

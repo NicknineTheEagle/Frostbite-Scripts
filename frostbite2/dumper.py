@@ -306,7 +306,7 @@ res.loadResNames()
 
 #read cat file
 cat=dict()
-catPath=os.path.join(dataDir,"cas.cat") #Seems to always be in the same place
+catPath=os.path.join(dataDir,"cas.cat") #Seems to always be in the same place.
 if os.path.isfile(catPath):
     print("Reading cat entries...")
     readCat(cat,catPath)
@@ -353,10 +353,8 @@ if os.path.isdir(os.path.join(gameDirectory,"game","Speed")):
     res.unkResTypes.clear()
     dumpRoot(dataDir,patchDir,targetDirectory)
 
-    #Write GUID table.
     print("Writing EBX GUID table...")
     ebx.writeGuidTable(targetDirectory)
 
-    # Write RES table.
     print ("Writing RES table...")
     res.writeResTable(targetDirectory)

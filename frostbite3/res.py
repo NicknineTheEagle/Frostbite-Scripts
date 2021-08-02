@@ -1,6 +1,8 @@
+#Res names and res lookup table are handled here.
+#Frostbite 3 looks up res files by 64-bit ID.
 import os
-import re
 import pickle
+import re
 from dbo import Guid
 
 resTypes=dict()
@@ -8,19 +10,19 @@ resTable=dict()
 unkResTypes=list()
 
 def loadResNames():
-    #Load known res names from the list into types table.
+    #Load known res type names from the list into types table.
     f=open(r"..\misc\resnames.txt","r")
     data=f.read()
     f.close()
     lines=data.splitlines()
 
     for line in lines:
-        #Skip comments and whitespaces
+        #Skip comments and whitespaces.
         name=re.split("[ \t#]",line,1)[0]
         if not name:
             continue
 
-        #Res types are lowercase names hashed with FNV-1
+        #Res types are lowercase names hashed with FNV-1.
         hash=hasher(name.lower())
         resTypes[hash]=name
         #print("%08x : %s" % (hash,name))
@@ -34,8 +36,6 @@ def hasher(keyword): #32bit FNV-1 hash with FNV_offset_basis = 5381 and FNV_prim
 
 def getResExt(typ):
     if typ not in resTypes:
-        if resType not in unkResTypes:
-            unkResTypes.append(resType)
         return ".res_%08x" % typ
     return "."+resTypes[typ]
 
@@ -78,7 +78,7 @@ def loadResTable(dumpFolder):
     resTable=pickle.load(f)
     f.close()
 
-    #Load RES names, too.
+    #Load res names, too.
     loadResNames()
 
 newWaves=dict()

@@ -190,7 +190,7 @@ if not tocLayout.getSubObject("installManifest") or \
         else:
             readCat=cas.readCat2 #Star Wars: Battlefront Beta
 
-        catPath=os.path.join(dataDir,"cas.cat") #Seems to always be in the same place
+        catPath=os.path.join(dataDir,"cas.cat") #Seems to always be in the same place.
         if os.path.isfile(catPath):
             print("Reading cat entries...")
             readCat(catPath)
@@ -202,7 +202,7 @@ if not tocLayout.getSubObject("installManifest") or \
                 readCat(patchedCat)
 
         if os.path.isdir(updateDir):
-            #First, extract all DLC.
+            #First, extract all DLCs.
             for dir in os.listdir(updateDir):
                 if dir=="Patch":
                     continue

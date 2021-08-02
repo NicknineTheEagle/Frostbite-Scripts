@@ -1,3 +1,5 @@
+#Harmony Sample Bank (SBR) format is parsed here. Used by NewWaveAsset to store info about variations and segments.
+#SBR files are machine endian.
 from struct import unpack,pack
 import io
 import dbo
@@ -124,8 +126,7 @@ class Field:
                 self.saveValue(val)
 
     def saveValue(self,rawVal):
-        #All values are stored internally as integers so now we must
-        #re-interpret them to the desired type.
+        #All values are stored internally as integers so now we must re-interpret them to the desired type.
         data=self.packer("Q",rawVal)
 
         if self.dataType==FieldType.Boolean:
@@ -201,7 +202,7 @@ class Bank:
             self.unpacker=unpackBE
             self.packer=packBE
         else:
-            raise ValueError("Bad SBR header magic in: "+f.name)
+            raise ValueError("Bad SBR header magic in: "+path)
 
         self.numDataSets=readInt16(self,0x0a)
         self.tableOffset=readInt32(self,0x18)

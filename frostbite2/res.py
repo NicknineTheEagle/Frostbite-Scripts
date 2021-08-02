@@ -1,3 +1,5 @@
+#Res names and res lookup table are handled here.
+#Frostbite 2 looks up res files by name.
 import os
 import pickle
 import re
@@ -7,7 +9,7 @@ resTable=dict()
 unkResTypes=list()
 
 def loadResNames():
-    #Load known res names from the list into types table.
+    #Load known res type names from the list into types table.
     f=open(r"..\misc\resnames.txt","r")
     data=f.read()
     f.close()
@@ -71,5 +73,5 @@ def loadResTable(dumpFolder):
     resTable=pickle.load(f)
     f.close()
 
-    #Load RES names, too.
+    #Load res names, too.
     loadResNames()
