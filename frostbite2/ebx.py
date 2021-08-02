@@ -472,6 +472,7 @@ class Dbx:
         elif self.prim.desc.name=="NfsTmxAsset": self.extractGenericSoundAsset(".tmx")
         elif self.prim.desc.name=="MovieTextureAsset": self.extractMovieAsset()
         elif self.prim.desc.name=="TextureAsset": self.extractTextureAsset()
+        elif self.prim.desc.name=="NoiseTextureAsset": self.extractTextureAsset()
 
     def findRes(self,name):
         name=name.lower()
