@@ -1,16 +1,18 @@
-AnimTrackData #BF3-PC/PS3/X360;NFSTR-PC/PS3/X360;MOHW-PC/PS3/X360;AOTDC-PS3/X360;BF4-PC/PS4;NFSR-PC/PS4;
+ASLibSwfMovie
+AnimTrackData
 AnimatedPointCloud
 AntResource
-ASLibSwfMovie #PS3: AOTDC
 AssetBank
 AtlasGroupResource
 AtlasTexture
-AttribSysDataObject #PC: NFSTR
+AttribSysDataObject
 BundleRefTableResource
+CompiledBytecode
 CompiledLuaResource
 CompressedClipData
 ControlMeshData
 DelayLoadBundleResource
+DurangoTexture
 Dx11NvRvmDatabase
 Dx11RvmDatabase
 Dx11ShaderProgramDatabase
@@ -20,7 +22,7 @@ Dx12PcRvmDatabase
 DxShaderDatabase
 DxShaderProgramDatabase
 DxTexture
-DxTexture
+DylanEnvironmentEventLayerResource
 EAClothAssetData
 EAClothData
 EAClothEntityData
@@ -33,8 +35,9 @@ EnlightenStaticDatabase
 EnlightenSystem
 FaceFXResource
 FifaPhysicsResourceData
-FootballMetaMorphVertexRegionWeightsResource
 FootballMetaMorphMeshDeltaPositionsResource
+FootballMetaMorphVertexRegionWeightsResource
+GiGridStreamingGroupResource
 GtsoLut
 HavokClothPhysicsData
 HavokDestructionPhysicsData
@@ -46,8 +49,13 @@ IesResource
 ImpulseResponse
 LargeParticleCloud
 LinearMediaAsset
+LoadGridResource
 LocalizedStringResource
 MeshAdjacencyResource
+MeshComputeFaceAdjacencyResource
+MeshComputeIndexBufferResource
+MeshComputeMeshDefinitionResource
+MeshComputeStaticCullSetResource
 MeshEmitterResource
 MeshSet
 MetaMorphTargetMeshResource
@@ -55,24 +63,34 @@ MorphMaterialResource
 MorphResource
 MorphTargetsResource
 MovieTexture
+MovieTextureAssetData
 NavMeshResource
 NewWaveResource
 OccluderMesh
+OrbisShaderProgramDatabase
+OrbisTexture
+PSDResource
 PamReplayResource
 PathfindingRuntimeResource
 PcaComponentWeightsResource
+PcaGeometryResource
+PersistenceDefRuntimeResource
 PhysicsResource
 PlayerPresetResource
-Ps3ShaderProgramDatabase #PS3: AOTDC, NFSTR
-Ps3Texture #PS3: - BF3, NFSTR, MOHW, AOTDC
-PSDResource
+Ps3ShaderProgramDatabase
+Ps3Texture
+Ps4ShaderProgramDatabase
 RaceGroundTextureResource
 RagdollResource
 RawFileData
 RenderTexture
+RimeTtfFontFile
+ScenarioDefRuntimeResource
 SerializedExpressionNodeGraph
+ShadowExtrusionResource
+SourceSpaceMeshResource
 StaticEnlightenDatabase
-LoadGridResource
+StitchGeometryResource
 SvgImageData
 SwfMovie
 Terrain
@@ -81,22 +99,9 @@ TerrainLayerCombinations
 TerrainStreamingTree
 Texture
 UITtfFontFile
-MovieTextureAssetData
 VisualTerrain
-XenonShaderProgramDatabase #X360: AOTDC
-XenonTexture #X360: - BF3, NFSTR, MOHW, AOTDC
-ZoneStreamerGrid
-### Anthem specific ResTypes
 WrapTemplateMappingResource
-MeshComputeIndexBufferResource
-ScenarioDefRuntimeResource
-SourceSpaceMeshResource
-MeshComputeStaticCullSetResource
-StitchGeometryResource
-MeshComputeMeshDefinitionResource
 WrappedMeshResource
-PcaGeometryResource
-ShadowExtrusionResource
-DylanEnvironmentEventLayerResource
-MeshComputeFaceAdjacencyResource
-PersistenceDefRuntimeResource
+XenonShaderProgramDatabase
+XenonTexture
+ZoneStreamerGrid
