@@ -769,7 +769,7 @@ class Dbx:
         if self.prim.get("HasVp6",False)!=None:
             #Detect type.
             if self.prim.get("HasVp6"): ext=".vp6"
-            elif self.prim.get("HasVp8"): ext=".webm"
+            elif self.prim.get("HasVp8"): ext=".vp8"
             else: print("Unknown movie type")
         else:
             #Early version, VP6 only.
