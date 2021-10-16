@@ -51,11 +51,16 @@ def readBlockHeader(f):
     dictFlag=num1&0xFF000000
     uncompressedSize=num1&0x00FFFFFF
     comType=(num2&0xFF000000)>>24
+    typeFlag=(num2&0x00F00000)>>20
     compressedSize=num2&0x000FFFFF
-    return dictFlag, uncompressedSize, comType, compressedSize
+    return dictFlag, uncompressedSize, comType, typeFlag, compressedSize
 
 def decompressBlock(f,f2):
-    dictFlag, uncompressedSize, comType, compressedSize = readBlockHeader(f)
+    dictFlag, uncompressedSize, comType, typeFlag, compressedSize = readBlockHeader(f)
+
+    #Hack for legacy format in NFS:R prototype.
+    if typeFlag==0:
+        comType=0x02 if uncompressedSize!=compressedSize else 0x00
 
     if comType==0x09:
         #Block is compressed with LZ4.
@@ -164,7 +169,7 @@ def decompressPatchedPayload(basePath,baseOffset,deltaPath,deltaOffset,deltaSize
                 if f2.tell()==originalSize: break
         elif instructionType==4: #skip entire blocks, do not increase currentSize at all
             for i in range(instructionSize):
-                dictFlag, uncompressedSize, comType, compressedSize = readBlockHeader(base)
+                dictFlag, uncompressedSize, comType, typeFlag, compressedSize = readBlockHeader(base)
                 base.seek(compressedSize,1)
         else:
             raise Exception("Unknown payload type: 0x%02x Delta offset: 0x%08x" % (instructionType,delta.tell()-4))
