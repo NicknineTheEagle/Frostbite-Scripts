@@ -462,6 +462,8 @@ class Dbx:
         outName=os.path.join(outputFolder,self.trueFilename+".txt")
         f2=open2(outName,"w")
 
+        f2.write(self.fileGUID.format()+"\n")
+
         for (guid,instance) in self.instances:
             self.writeInstance(f2,instance,guid.format())
             self.recurse(instance.fields,f2,0)
