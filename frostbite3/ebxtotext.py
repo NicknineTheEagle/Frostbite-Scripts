@@ -1,12 +1,13 @@
 import os
 from struct import unpack,pack
 import ebx
+import res
 import sys
 
 #Choose where you dumped the files and where to put the resulting TXT files.
-dumpDirectory   = r"E:\GameRips\NFS\NFSTR\pc\dump"
-targetDirectory = r"E:\GameRips\NFS\NFSTR\pc\ebx"
-inputFolder     = r"_c4\sound\music" #relative to ebxFolder
+dumpDirectory   = r"E:\GameRips\NFS\NFSR\pc\dump"
+targetDirectory = r"E:\GameRips\NFS\NFSR\pc\ebx"
+inputFolder     = r"audio\music" #relative to ebxFolder
 
 ebxFolder       = r"bundles\ebx" #relative to the dumpDirectory
 
@@ -27,6 +28,8 @@ if len(sys.argv)>1:
 else:
     print("Loading GUID table...")
     ebx.loadGuidTable(dumpDirectory)
+    print ("Loading RES table...")
+    res.loadResTable(dumpDirectory)
 
     for dir0, dirs, ff in os.walk(inputFolder):
         for fname in ff:

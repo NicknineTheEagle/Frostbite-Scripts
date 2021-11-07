@@ -402,17 +402,16 @@ class Dbx:
 
         return field
 
-    def dump(self,outputFolder):
+    def dump(self,outName):
         print(self.trueFilename)
-        outName=os.path.join(outputFolder,self.trueFilename+".txt")
         f2=open2(outName,"w")
-
         f2.write(self.fileGUID.format()+"\n")
 
         for (guid,instance) in self.instances:
             if guid==self.primaryInstanceGUID: self.writeInstance(f2,instance,guid.format()+ " #primary instance")
             else: self.writeInstance(f2,instance,guid.format())
             self.recurse(instance.fields,f2,0)
+
         f2.close()
 
     def recurse(self, fields, f2, lvl): #over fields
