@@ -458,7 +458,10 @@ class Dbx:
                     self.recurse(field.value.fields,f2,lvl)
 
             elif typ==FieldType.GUID:
-                self.writeField(f2,field,lvl," "+field.value.format())
+                if field.value.isNull():
+                    self.writeField(f2,field,lvl," *nullGuid*")
+                else:
+                    self.writeField(f2,field,lvl," "+field.value.format())
 
             elif typ==FieldType.SHA1:
                 self.writeField(f2,field,lvl," "+field.value.hex().upper())
