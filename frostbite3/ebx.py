@@ -105,6 +105,11 @@ class ComplexDescriptor:
         self.type            = varList[4]
         self.size            = varList[5] #total length of the complex in the payload section
         self.secondarySize   = varList[6] #seems deprecated
+
+    def getNumFields(self):
+        return self.numField | ((self.alignment << 1) & 0x100)
+    def getAlignment(self):
+        return self.alignment & 0x7f
 class InstanceRepeater:
     def __init__(self,varList):
         self.complexIndex    = varList[0] #index of complex used as the instance
@@ -266,7 +271,7 @@ class Dbx:
         for i, instanceRepeater in enumerate(self.instanceRepeaters):
             for repetition in range(instanceRepeater.repetitions):
                 #obey alignment of the instance; peek into the complex for that
-                while f.tell()%self.complexDescriptors[instanceRepeater.complexIndex].alignment!=0: f.seek(1,1)
+                while f.tell()%self.complexDescriptors[instanceRepeater.complexIndex].getAlignment()!=0: f.seek(1,1)
 
                 #all instances after numGUIDRepeater have no guid
                 if i<self.header.numGUIDRepeater:
@@ -300,9 +305,9 @@ class Dbx:
 
         cmplx.fields=[]
         #alignment 4 instances require subtracting 8 for all field offsets and the complex size
-        obfuscationShift=8 if (isInstance and cmplx.desc.alignment==4) else 0
+        obfuscationShift=8 if (isInstance and cmplx.desc.getAlignment()==4) else 0
 
-        for fieldIndex in range(complexDesc.fieldStartIndex,complexDesc.fieldStartIndex+complexDesc.numField):
+        for fieldIndex in range(complexDesc.fieldStartIndex,complexDesc.fieldStartIndex+complexDesc.getNumFields()):
             f.seek(cmplx.offset+self.fieldDescriptors[fieldIndex].offset-obfuscationShift)
             cmplx.fields.append(self.readField(fieldIndex,f))
 
@@ -365,7 +370,7 @@ class Dbx:
                 enumeration=Enumeration()
                 enumeration.type=fieldDesc.ref
 
-                for i in range(enumComplex.fieldStartIndex,enumComplex.fieldStartIndex+enumComplex.numField):
+                for i in range(enumComplex.fieldStartIndex,enumComplex.fieldStartIndex+enumComplex.getNumFields()):
                     enumeration.values[self.fieldDescriptors[i].offset]=self.fieldDescriptors[i].name
 
                 self.enumerations[fieldDesc.ref]=enumeration
