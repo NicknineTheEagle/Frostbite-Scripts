@@ -376,7 +376,7 @@ class Dbx:
                 self.enumerations[fieldDesc.ref]=enumeration
 
             if compareValue not in self.enumerations[fieldDesc.ref].values:
-                field.value='*nullEnum*'
+                field.value=str(compareValue)
             else:
                 field.value=self.enumerations[fieldDesc.ref].values[compareValue]
 
@@ -496,10 +496,16 @@ class Dbx:
                 self.writeField(f2,field,lvl," "+towrite)
 
             elif typ==FieldType.Array:
+                arrayCmplxDesc=self.complexDescriptors[field.desc.ref]
+                arrayFieldDesc=self.fieldDescriptors[arrayCmplxDesc.fieldStartIndex]
+
                 if len(field.value.fields)==0:
                     self.writeField(f2,field,lvl," *nullArray*")
                 else:
-                    self.writeField(f2,field,lvl,"::"+field.value.desc.name)
+                    if arrayFieldDesc.getFieldType()==FieldType.Enum and arrayFieldDesc.ref==0: #hack for enum arrays
+                        self.writeField(f2,field,lvl,"::"+field.value.desc.name+" #unknown enum")
+                    else:
+                        self.writeField(f2,field,lvl,"::"+field.value.desc.name)
 
                     #quick hack so I can add indices to array members while using the same recurse function
                     for index in range(len(field.value.fields)):
