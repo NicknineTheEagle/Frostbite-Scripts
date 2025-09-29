@@ -245,7 +245,9 @@ def openSbFile(sbPath):
         #Decompress it into a temporary file with the tool, we'll clean it up once we're done.
         sb.close()
         decSbPath=os.path.join(tempDirectory,os.path.relpath(sbPath,gameDirectory))
-        subprocess.run([r"..\thirdparty\xbdecompress.exe","/T","/Y",sbPath,decSbPath])
+        if not os.path.isfile(decSbPath):
+            subprocess.run([r"..\thirdparty\xbdecompress.exe","/T","/Y",sbPath,decSbPath])
+
         return open(decSbPath,"rb")
 
     #Normal SB file.
@@ -290,6 +292,25 @@ def dumpRoot(dataDir,patchDir,outPath):
 
                 dump(fname,outPath)
 
+def dumpDLC(dataDir,dlcDir,patchDir,outPath):
+    os.makedirs(outPath,exist_ok=True)
+    dlcCommonDatPath=os.path.join(dlcDir,"common.dat")
+    patchCommonDatPath=os.path.join(patchDir,"common.dat")
+
+    for dir0, dirs, ff in os.walk(dlcDir):
+        for fname in ff:
+            if fname[-4:]==".toc":
+                fname=os.path.join(dir0,fname)
+                localPath=os.path.relpath(fname,dlcDir)
+                print(localPath)
+
+                #Check if there's a patched version and extract it first.
+                patchedName=os.path.join(patchDir,localPath)
+                if os.path.isfile(patchedName):
+                    dump(patchedName,outPath,fname,patchCommonDatPath)
+
+                baseName=os.path.join(dataDir,localPath)
+                dump(fname,outPath,baseName,dlcCommonDatPath)
 
 #make the paths absolute and normalize the slashes
 gameDirectory=os.path.normpath(gameDirectory)
@@ -324,7 +345,8 @@ if os.path.isdir(updateDir):
             continue
 
         print("Extracting DLC %s..." % dir)
-        dumpRoot(os.path.join(updateDir,dir,"Data"),patchDir,targetDirectory)
+        dlcDir=os.path.join(updateDir,dir,"Data")
+        dumpDLC(dataDir,dlcDir,patchDir,targetDirectory)
 
 #Now extract the base game.
 print("Extracting main game...")

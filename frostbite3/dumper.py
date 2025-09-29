@@ -149,6 +149,24 @@ def dumpRoot(dataDir,patchDir,outPath):
 
                 dump(fname,None,outPath)
 
+def dumpDLC(dataDir,dlcDir,patchDir,outPath):
+    os.makedirs(outPath,exist_ok=True)
+
+    for dir0, dirs, ff in os.walk(dlcDir):
+        for fname in ff:
+            if fname[-4:]==".toc":
+                fname=os.path.join(dir0,fname)
+                localPath=os.path.relpath(fname,dlcDir)
+                print(localPath)
+
+                #Check if there's a patched version and extract it first.
+                patchedName=os.path.join(patchDir,localPath)
+                if os.path.isfile(patchedName):
+                    dump(patchedName,fname,outPath)
+
+                baseName=os.path.join(dataDir,localPath)
+                dump(fname,baseName,outPath)
+
 def findCats(dataDir,patchDir,readCat):
     #Read all cats in the specified directory.
     for dir0, dirs, ff in os.walk(dataDir):
@@ -208,7 +226,8 @@ if not tocLayout.getSubObject("installManifest") or \
                     continue
 
                 print("Extracting DLC %s..." % dir)
-                dumpRoot(os.path.join(updateDir,dir,"Data"),patchDir,targetDirectory)
+                dlcDir=os.path.join(updateDir,dir,"Data")
+                dumpDLC(dataDir,dlcDir,patchDir,targetDirectory)
 
         #Now extract the base game.
         print("Extracting main game...")
@@ -242,9 +261,9 @@ else:
         #First, extract all DLCs.
         for dir in os.listdir(updateDir):
             print("Extracting DLC %s..." % dir)
-            dir=os.path.join(updateDir,dir,"Data")
-            findCats(dir,patchDir,readCat)
-            dumpRoot(dir,patchDir,targetDirectory)
+            dlcDir=os.path.join(updateDir,dir,"Data")
+            findCats(dlcDir,patchDir,readCat)
+            dumpDLC(dataDir,dlcDir,patchDir,targetDirectory)
 
     #Now extract the base game.
     print("Extracting main game...")
