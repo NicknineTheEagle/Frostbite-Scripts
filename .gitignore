@@ -114,3 +114,5 @@ oo2core_6_win64.dll
 xbcompress.exe
 xbdecompress.exe
 xbdm.dll
+msvcp71.dll
+msvcr71.dll
