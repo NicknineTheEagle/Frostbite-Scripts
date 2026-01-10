@@ -652,10 +652,9 @@ class Dbx:
 
     def extractMovieAsset(self):
         print(self.trueFilename)
-        isStreamed=self.prim.get("StreamMovieFile",False,True)
+        chnk=self.prim.get("ChunkGuid",False,None)
 
-        if isStreamed:
-            chnk=self.prim.get("ChunkGuid")
+        if chnk and not chnk.isNull():
             self.extractChunk(chnk,".vp6")
         else:
             resName=self.prim.get("ResourceName")
